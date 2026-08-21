@@ -936,21 +936,6 @@ export function canEditBusiness(user: User, business: Business): boolean {
 }
 
 export function canViewBusiness(user?: User | null, business?: { sdrName?: string }): boolean {
-  if (!user || !business) return true
-  if (user.role === 'Sales Manager' || user.role === 'Coordinator') return true
-  if (user.role === 'SDR') {
-    const sdrName = (business.sdrName || '').trim().toLowerCase()
-    const userName = (user.name || '').trim().toLowerCase()
-    const userEmail = (user.email || '').trim().toLowerCase()
-    return sdrName === userName || sdrName === userEmail
-  }
-  if (user.role === 'Field Ops') {
-    if (user.dedicatedSdrs && Array.isArray(user.dedicatedSdrs) && user.dedicatedSdrs.length > 0) {
-      const sdrName = (business.sdrName || '').trim().toLowerCase()
-      return user.dedicatedSdrs.some(s => s.trim().toLowerCase() === sdrName)
-    }
-    return true
-  }
   return true
 }
 
@@ -2933,18 +2918,12 @@ function AllBusinesses({
             onChange={e => setSearch(e.target.value)}
           />
         </div>
-        {user.role !== 'SDR' ? (
-          <div className="w-40">
-            <select className="form-input text-xs" value={sdrFilter} onChange={e => setSdrFilter(e.target.value)}>
-              <option value="All">{t.allSdrs}</option>
-              {SDR_LIST.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          </div>
-        ) : (
-          <div className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 font-mono">
-            SDR: {user.name}
-          </div>
-        )}
+        <div className="w-40">
+          <select className="form-input text-xs" value={sdrFilter} onChange={e => setSdrFilter(e.target.value)}>
+            <option value="All">{t.allSdrs}</option>
+            {SDR_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
+        </div>
         <div className="w-44">
           <select className="form-input text-xs" value={statusFilter} onChange={e => setStatusFilter(e.target.value)}>
             <option value="All">{t.allStatuses}</option>
@@ -3103,11 +3082,8 @@ function SDRDirectory({
   }, [businesses])
 
   const baseSdrList = useMemo(() => {
-    if (user?.role === 'SDR' && user.name) {
-      return [user.name]
-    }
     return SDR_LIST
-  }, [user])
+  }, [])
 
   const filteredSdrList = useMemo(() => {
     if (!search.trim()) return baseSdrList
@@ -3587,20 +3563,14 @@ function ShootReport({
             value={search}
             onChange={e => setSearch(e.target.value)}
           />
-          {user?.role !== 'SDR' ? (
-            <select
-              className="form-input text-xs w-44"
-              value={sdrFilter}
-              onChange={e => setSdrFilter(e.target.value)}
-            >
-              <option value="All">{t.allSdrs}</option>
-              {SDR_LIST.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
-          ) : (
-            <div className="px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-xl text-xs font-semibold text-slate-700 font-mono">
-              SDR: {user.name}
-            </div>
-          )}
+          <select
+            className="form-input text-xs w-44"
+            value={sdrFilter}
+            onChange={e => setSdrFilter(e.target.value)}
+          >
+            <option value="All">{t.allSdrs}</option>
+            {SDR_LIST.map(s => <option key={s} value={s}>{s}</option>)}
+          </select>
           <select
             className="form-input text-xs w-48 font-mono"
             value={statusFilter}
