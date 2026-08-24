@@ -917,18 +917,44 @@ const PRESET_AVATARS = [
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 
+export function isSdrOwner(user: User, sdrNameRaw?: string): boolean {
+  if (!sdrNameRaw) return false
+  const sdrName = sdrNameRaw.trim().toLowerCase()
+  if (!sdrName) return false
+
+  const userName = (user.name || '').trim().toLowerCase()
+  const userEmail = (user.email || '').trim().toLowerCase()
+  const emailPrefix = userEmail.split('@')[0] || ''
+
+  // Direct matches
+  if (sdrName === userName || sdrName === userEmail || sdrName === emailPrefix) return true
+
+  // Substring matching
+  if (userName && (userName.includes(sdrName) || sdrName.includes(userName))) return true
+  if (emailPrefix && (emailPrefix.includes(sdrName) || sdrName.includes(emailPrefix))) return true
+
+  // Word-by-word matching in full name (e.g. "Irwan Setiawan" -> ["irwan", "setiawan"])
+  const nameParts = userName.split(/[\s._-]+/).filter(Boolean)
+  if (nameParts.includes(sdrName)) return true
+
+  // Dedicated SDRs check
+  if (user.dedicatedSdrs && Array.isArray(user.dedicatedSdrs) && user.dedicatedSdrs.length > 0) {
+    if (user.dedicatedSdrs.some(s => s && s.trim().toLowerCase() === sdrName)) return true
+  }
+
+  return false
+}
+
 export function canEditBusiness(user: User, business: Business): boolean {
+  if (!user || !business) return false
   if (user.role === 'Sales Manager' || user.role === 'Coordinator') return true
   if (user.role === 'SDR') {
-    const sdrName = (business.sdrName || '').trim().toLowerCase()
-    const userName = (user.name || '').trim().toLowerCase()
-    const userEmail = (user.email || '').trim().toLowerCase()
-    return sdrName === userName || sdrName === userEmail
+    return isSdrOwner(user, business.sdrName)
   }
   if (user.role === 'Field Ops') {
     if (user.dedicatedSdrs && Array.isArray(user.dedicatedSdrs) && user.dedicatedSdrs.length > 0) {
       const sdrName = (business.sdrName || '').trim().toLowerCase()
-      return user.dedicatedSdrs.some(s => s.trim().toLowerCase() === sdrName)
+      return user.dedicatedSdrs.some(s => s && s.trim().toLowerCase() === sdrName)
     }
     return false
   }
@@ -1384,12 +1410,6 @@ function BusinessModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-          {initial.id && user.role === 'SDR' && (
-            <div className="p-3 bg-amber-50 border border-amber-200 rounded-xl text-xs text-amber-800 font-mono">
-              ⚠️ {t.sdrApprovalWarning}
-            </div>
-          )}
-
           {/* Real-time Fraud Banner */}
           {duplicateOwner.isDuplicate && (
             <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-900 shadow-xs">
@@ -1614,7 +1634,7 @@ function BusinessModal({
               disabled={isUploadingKtp}
               className="px-5 py-2 text-xs font-bold bg-slate-900 text-white rounded-xl hover:bg-slate-800 transition-colors shadow-xs"
             >
-              {isUploadingKtp ? t.uploadingKtp : (initial.id ? (user.role === 'SDR' ? t.submitApproval : t.saveChanges) : t.addBusiness)}
+              {isUploadingKtp ? t.uploadingKtp : (initial.id ? t.saveChanges : t.addBusiness)}
             </button>
           </div>
         </form>
@@ -4662,6 +4682,11 @@ export default function App() {
 
   // ─── Status Quick Toggle / Auto-Update to Spreadsheet ────────────────────
   const handleQuickToggleStatus = async (business: Business, newStatus: Status) => {
+    if (!user || !canEditBusiness(user, business)) {
+      alert(lang === 'id' ? 'Anda tidak memiliki wewenang untuk mengubah status bisnis ini.' : 'You do not have permission to modify this business status.')
+      return
+    }
+
     setBusinesses(prev => prev.map(b => (b.id === business.id || b.businessName === business.businessName) ? { ...b, status: newStatus } : b))
 
     const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
@@ -4736,62 +4761,10 @@ export default function App() {
     if (!user) return
 
     const isEdit = Boolean(form.id)
-    const isSdr = user.role === 'SDR'
 
-    if (isEdit && isSdr) {
-      const isOnlyStatusChange = selected &&
-        selected.businessName === form.businessName &&
-        selected.submissionDate === form.submissionDate &&
-        selected.hours === form.hours &&
-        selected.hardware === form.hardware &&
-        selected.rate === form.rate &&
-        selected.city === form.city &&
-        selected.fullAddress === form.fullAddress &&
-        selected.phone === form.phone &&
-        selected.email === form.email &&
-        selected.ownerKtp === form.ownerKtp &&
-        selected.bankName === form.bankName &&
-        selected.accountNumber === form.accountNumber &&
-        selected.accountHolderName === form.accountHolderName
-
-      if (isOnlyStatusChange) {
-        setBusinesses(prev => prev.map(b => b.id === form.id ? (form as Business) : b))
-        setModal(null)
-        const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
-        if (scriptUrl) {
-          fetch(scriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({ action: 'save_business', data: form })
-          })
-        }
-        alert(t.saveSuccess)
-        return
-      }
-
-      const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
-      if (scriptUrl) {
-        try {
-          const res = await fetch(scriptUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-            body: JSON.stringify({
-              action: 'submit_edit_request',
-              requesterName: user.name,
-              requesterRole: user.role,
-              businessName: form.businessName,
-              sdrName: form.sdrName,
-              originalData: selected,
-              updatedData: form
-            })
-          })
-          const data = await res.json()
-          alert(data.message || (lang === 'id' ? 'Permintaan edit berhasil dikirim dan menunggu persetujuan.' : 'Edit request submitted successfully, awaiting review.'))
-          fetchSheet()
-        } catch (e) {
-          console.error(e)
-        }
-      }
+    // Security check: only users with permission can edit an existing business
+    if (isEdit && selected && !canEditBusiness(user, selected)) {
+      alert(lang === 'id' ? 'Anda hanya dapat mengedit bisnis milik Anda sendiri.' : 'You can only edit your own businesses.')
       setModal(null)
       return
     }
@@ -5179,7 +5152,7 @@ export default function App() {
               : {
                   ...BLANK_FORM,
                   sdrName: user.role === 'SDR'
-                    ? (SDR_LIST.find(s => s.toLowerCase() === user.name.toLowerCase()) || user.name || SDR_LIST[0])
+                    ? (SDR_LIST.find(s => isSdrOwner(user, s)) || user.name || SDR_LIST[0])
                     : (user.role === 'Field Ops' && user.dedicatedSdrs && user.dedicatedSdrs.length > 0
                         ? user.dedicatedSdrs[0]
                         : BLANK_FORM.sdrName)
