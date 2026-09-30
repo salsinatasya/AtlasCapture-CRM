@@ -41,12 +41,53 @@ function IconShootReport({ className = "w-4 h-4" }: { className?: string }) {
   )
 }
 
-function IconApprovals({ className = "w-4 h-4" }: { className?: string }) {
+function IconFileText({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
-      <path strokeLinecap="round" strokeLinejoin="round" d="M9 12.75L11.25 15 15 9.75M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+      <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 00-3.375-3.375h-1.5A1.125 1.125 0 0113.5 7.125v-1.5a3.375 3.375 0 00-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 00-9-9z" />
     </svg>
   )
+}
+
+function IconGoogle({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24">
+      <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" />
+      <path fill="#34A853" d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" />
+      <path fill="#FBBC05" d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l2.85-2.22.81-.63z" />
+      <path fill="#EA4335" d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84c.87-2.6 3.3-4.52 6.16-4.52z" />
+    </svg>
+  )
+}
+
+function parseJwt(token: string) {
+  try {
+    const base64Url = token.split('.')[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(
+      atob(base64)
+        .split('')
+        .map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2))
+        .join('')
+    )
+    return JSON.parse(jsonPayload)
+  } catch (e) {
+    return null
+  }
+}
+
+declare global {
+  interface Window {
+    google?: {
+      accounts: {
+        id: {
+          initialize: (config: any) => void
+          renderButton: (parent: HTMLElement | null, options: any) => void
+          prompt: (momentListener?: any) => void
+        }
+      }
+    }
+  }
 }
 
 function IconSettings({ className = "w-4 h-4" }: { className?: string }) {
@@ -107,6 +148,14 @@ function IconCalendar({ className = "w-4 h-4" }: { className?: string }) {
   )
 }
 
+function IconClockHistory({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M12 6v6h4.5m4.5 0a9 9 0 11-18 0 9 9 0 0118 0z" />
+    </svg>
+  )
+}
+
 // ─── Date Parsing & Utilities ────────────────────────────────────────────────
 
 export function parseAnyDate(dStr?: string): Date | null {
@@ -155,6 +204,7 @@ export const TRANSLATIONS = {
     navShootReport: 'Shoot Report',
     navApprovals: 'Permintaan Approval',
     navTeamManage: 'Kelola Tim & Role',
+    navActivity: 'Riwayat Aktivitas',
     logout: 'Keluar',
     settings: 'Pengaturan Akun',
     langSelect: 'Bahasa',
@@ -256,7 +306,7 @@ export const TRANSLATIONS = {
     manageTeamTitle: 'Pengelolaan Tim & Role Pengguna',
     manageTeamSub: 'Khusus Sales Manager: Konfigurasi hak akses role dan Dedicated SDR.',
     onlyManagerCanChangeRole: 'Hanya Sales Manager yang memiliki wewenang untuk mengubah role pengguna.',
-    
+
     // Status Synchronization Translations
     syncShootStatusBtn: '⚡ Sinkronkan Status dari Shoot Report',
     syncShootStatusTooltip: 'Mendeteksi bisnis yang sudah memiliki jam shoot dan mengubah statusnya menjadi Running di CRM & Spreadsheet',
@@ -266,7 +316,7 @@ export const TRANSLATIONS = {
     syncBulkCrmBtn: '⚡ Sinkronkan Status Semua Bisnis Aktif ke Spreadsheet',
     syncRowBtn: 'Set Status Running',
     syncRowSuccess: (name: string) => `Status bisnis "${name}" berhasil diubah menjadi Running dan diperbarui di Spreadsheet!`,
-    
+
     // Filter by Date
     filterDateRange: 'Filter Rentang Tanggal',
     filterStartDate: 'Dari Tanggal',
@@ -346,6 +396,7 @@ export const TRANSLATIONS = {
     navShootReport: 'Shoot Report',
     navApprovals: 'Approval Requests',
     navTeamManage: 'Team & Roles',
+    navActivity: 'Activity & Audit Log',
     logout: 'Logout',
     settings: 'Account Settings',
     langSelect: 'Language',
@@ -447,7 +498,7 @@ export const TRANSLATIONS = {
     manageTeamTitle: 'Team & Role Management',
     manageTeamSub: 'Sales Manager Exclusive: Configure user role permissions and Dedicated SDRs.',
     onlyManagerCanChangeRole: 'Only Sales Managers have authorization to modify user roles.',
-    
+
     // Status Synchronization Translations
     syncShootStatusBtn: '⚡ Sync Status from Shoot Report',
     syncShootStatusTooltip: 'Detects businesses with logged shoot hours and automatically updates their status to Running in CRM & Google Sheets',
@@ -457,7 +508,7 @@ export const TRANSLATIONS = {
     syncBulkCrmBtn: '⚡ Sync All Active Running Businesses to Spreadsheet',
     syncRowBtn: 'Set Status to Running',
     syncRowSuccess: (name: string) => `Status for "${name}" successfully updated to Running in Spreadsheet!`,
-    
+
     // Filter by Date
     filterDateRange: 'Date Range Filter',
     filterStartDate: 'From Date',
@@ -554,6 +605,8 @@ export function getStatusLabel(status: Status, lang: Language): string {
     default: return status
   }
 }
+
+export const SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzt0SiU7dM04w3MbNLRGGLys4WCoCGsWpJjlL-5kCBYLIJucqwGElLkCqZZGLY2qnJ9/exec'
 
 // ─── Phone & Duplicate / Fraud Helpers ────────────────────────────────────────
 
@@ -891,7 +944,7 @@ export interface Business {
   status: Status
   ktpPhotoUrl?: string
   hasPendingEdit?: boolean
-  
+
   // Dynamic fields computed from Shoot Report
   shootHours?: number
   shootVideos?: number
@@ -902,7 +955,19 @@ export interface Business {
   shootStatus?: 'Maksimal' | 'Sedang Berjalan' | 'Stopped'
 }
 
-type Page = 'dashboard' | 'businesses' | 'sdr' | 'shoot-report' | 'approvals' | 'team'
+export interface ActivityLog {
+  logId: string
+  timestamp: string
+  actorName: string
+  actorEmail: string
+  actorRole: string
+  actionType: 'ADD_BUSINESS' | 'EDIT_BUSINESS' | 'DELETE_BUSINESS' | 'UPDATE_STATUS' | 'APPROVE_EDIT' | 'REJECT_EDIT' | string
+  businessName: string
+  sdrName: string
+  details: string
+}
+
+type Page = 'dashboard' | 'businesses' | 'sdr' | 'team'
 
 const SDR_LIST = ['Aldy', 'Ariel', 'Billy', 'Hendra', 'Irwan', 'Markus', 'Riki', 'Reksa', 'Reksi', 'Sefti', 'Wahyu']
 
@@ -1092,18 +1157,16 @@ function LanguageToggle({ lang, onChangeLang }: { lang: Language; onChangeLang: 
     <div className="flex items-center bg-slate-800 p-0.5 rounded-lg border border-slate-700">
       <button
         onClick={() => onChangeLang('id')}
-        className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
-          lang === 'id' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
-        }`}
+        className={`px-2 py-1 text-xs font-bold rounded transition-colors ${lang === 'id' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+          }`}
         title="Bahasa Indonesia"
       >
         ID
       </button>
       <button
         onClick={() => onChangeLang('en')}
-        className={`px-2 py-1 text-xs font-bold rounded transition-colors ${
-          lang === 'en' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
-        }`}
+        className={`px-2 py-1 text-xs font-bold rounded transition-colors ${lang === 'en' ? 'bg-indigo-600 text-white' : 'text-slate-400 hover:text-slate-200'
+          }`}
         title="English"
       >
         EN
@@ -1128,11 +1191,10 @@ function NavItem({
   return (
     <button
       onClick={onClick}
-      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${
-        active
-          ? 'bg-slate-800 text-white font-semibold border border-slate-700'
-          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-      }`}
+      className={`w-full flex items-center justify-between px-3.5 py-2.5 rounded-xl text-sm font-medium transition-colors ${active
+        ? 'bg-slate-800 text-white font-semibold border border-slate-700'
+        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+        }`}
     >
       <div className="flex items-center gap-3">
         <span className={active ? 'text-indigo-400' : 'text-slate-400'}>{icon}</span>
@@ -1340,7 +1402,7 @@ function BusinessModal({
 
     if (ktpUploadBase64 && ktpUploadMime) {
       setIsUploadingKtp(true)
-      const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+      const scriptUrl = SCRIPT_URL
       if (scriptUrl) {
         try {
           const cleanBiz = form.businessName.replace(/[^a-zA-Z0-9]/g, '_')
@@ -1522,6 +1584,9 @@ function BusinessModal({
                   <input className="form-input" placeholder={lang === 'id' ? 'Jalan, RT/RW, Kelurahan, Kecamatan' : 'Street, District, City'} value={form.fullAddress} onChange={e => set('fullAddress', e.target.value)} required />
                 </Field>
               </div>
+              <Field label="Email" required>
+                <input type="email" className="form-input font-mono" placeholder="email@domain.com" value={form.email} onChange={e => set('email', e.target.value)} required />
+              </Field>
               <Field label={t.thPhone} required>
                 <div>
                   <div className="flex rounded-xl overflow-hidden border border-slate-200 focus-within:ring-2 focus-within:ring-slate-900/20 focus-within:border-slate-800 transition-all bg-white">
@@ -1541,9 +1606,6 @@ function BusinessModal({
                     {form.phone ? (lang === 'id' ? `Format tersimpan di Spreadsheet: ${form.phone}` : `Spreadsheet format: ${form.phone}`) : (lang === 'id' ? 'Masukkan nomor telepon (contoh: 8123456789)' : 'Enter phone number (e.g. 8123456789)')}
                   </p>
                 </div>
-              </Field>
-              <Field label="Email" required>
-                <input type="email" className="form-input font-mono" placeholder="email@domain.com" value={form.email} onChange={e => set('email', e.target.value)} required />
               </Field>
             </div>
           </div>
@@ -1627,6 +1689,21 @@ function BusinessModal({
             </div>
           </div>
 
+          {/* Agreement Auto-generation Notice */}
+          <div className="p-3.5 bg-emerald-50/80 border border-emerald-200 rounded-xl text-xs text-emerald-900 flex items-start gap-2.5">
+            <IconFileText className="w-5 h-5 text-emerald-600 shrink-0 mt-0.5" />
+            <div>
+              <p className="font-bold font-mono text-[11px] text-emerald-950 uppercase tracking-wide">
+                {lang === 'id' ? 'Auto-Generate Dokumen Agreement' : 'Auto-Generate Agreement Document'}
+              </p>
+              <p className="text-[11px] text-emerald-800 mt-0.5">
+                {lang === 'id'
+                  ? 'Saat formulir ini disimpan, dokumen Agreement resmi akan otomatis dibuat dan diarsipkan langsung ke folder Google Drive.'
+                  : 'When this form is saved, an official Agreement document will be automatically generated and archived directly into Google Drive.'}
+              </p>
+            </div>
+          </div>
+
           <div className="flex justify-end gap-3 pt-4 border-t border-slate-200">
             <button type="button" onClick={onClose} className="px-4 py-2 text-xs font-semibold text-slate-600 bg-white border border-slate-200 rounded-xl hover:bg-slate-50 transition-colors">{t.cancel}</button>
             <button
@@ -1645,8 +1722,29 @@ function BusinessModal({
 
 // ─── Detail View Modal ────────────────────────────────────────────────────────
 
-function DetailModal({ b, lang, onClose }: { b: Business; lang: Language; onClose: () => void }) {
+function DetailModal({
+  b,
+  lang,
+  onClose,
+  onGenerateAgreement
+}: {
+  b: Business;
+  lang: Language;
+  onClose: () => void;
+  onGenerateAgreement?: (b: Business) => void;
+}) {
   const t = TRANSLATIONS[lang]
+  const [generating, setGenerating] = useState(false)
+
+  const handleGen = async () => {
+    if (!onGenerateAgreement) return
+    setGenerating(true)
+    try {
+      await onGenerateAgreement(b)
+    } finally {
+      setGenerating(false)
+    }
+  }
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50">
@@ -1682,13 +1780,73 @@ function DetailModal({ b, lang, onClose }: { b: Business; lang: Language; onClos
             </div>
           </div>
 
+          {/* Agreement & Drive Archive Section */}
+          <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-emerald-950 uppercase tracking-wider text-[11px] font-mono flex items-center gap-1.5">
+                <IconFileText className="w-4 h-4 text-emerald-600" />
+                {lang === 'id' ? 'Dokumen Agreement Kerjasama' : 'Partnership Agreement Document'}
+              </span>
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-100 text-emerald-800">
+                Google Drive
+              </span>
+            </div>
+
+            {b.agreementLink ? (
+              <div className="space-y-2 pt-1">
+                <p className="text-[11px] text-emerald-800">
+                  {lang === 'id' ? 'Dokumen resmi tersimpan dan terarsip aman di Google Drive:' : 'Official document archived safely in Google Drive:'}
+                </p>
+                <div className="flex items-center gap-2">
+                  <a
+                    href={b.agreementLink}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-2 shadow-xs transition-colors"
+                  >
+                    <IconFileText className="w-4 h-4" />
+                    <span>{lang === 'id' ? 'Buka Dokumen di Google Drive' : 'Open Document in Google Drive'}</span>
+                    <span>↗</span>
+                  </a>
+                  {onGenerateAgreement && (
+                    <button
+                      type="button"
+                      disabled={generating}
+                      onClick={handleGen}
+                      className="py-2 px-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                      title={lang === 'id' ? 'Generate Ulang Agreement' : 'Regenerate Agreement'}
+                    >
+                      {generating ? '...' : (lang === 'id' ? 'Perbarui' : 'Update')}
+                    </button>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <div className="space-y-2 pt-1">
+                <p className="text-[11px] text-slate-600">
+                  {lang === 'id' ? 'Dokumen agreement belum digenerate untuk bisnis ini.' : 'Agreement document has not been generated for this business yet.'}
+                </p>
+                {onGenerateAgreement && (
+                  <button
+                    type="button"
+                    disabled={generating}
+                    onClick={handleGen}
+                    className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-2 shadow-xs transition-colors disabled:opacity-50"
+                  >
+                    <IconFileText className="w-4 h-4 text-emerald-400" />
+                    <span>{generating ? (lang === 'id' ? 'Membuat dokumen di Drive...' : 'Generating in Drive...') : (lang === 'id' ? 'Auto-Generate Agreement Sekarang' : 'Auto-Generate Agreement Now')}</span>
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* Shoot Report Activity Highlight */}
           <div className="p-4 bg-indigo-50/60 rounded-xl border border-indigo-100 space-y-2 font-mono">
             <div className="flex items-center justify-between">
               <span className="font-bold text-indigo-950 uppercase tracking-wider text-[11px]">{t.detailShootSection}</span>
-              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${
-                (b.shootHours || 0) > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
-              }`}>
+              <span className={`px-2 py-0.5 rounded text-[10px] font-bold ${(b.shootHours || 0) > 0 ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                }`}>
                 {(b.shootHours || 0) > 0 ? t.statusBerjalan : t.statusStopped}
               </span>
             </div>
@@ -1717,6 +1875,7 @@ function DetailModal({ b, lang, onClose }: { b: Business; lang: Language; onClos
           <div className="space-y-2">
             <p className="font-bold text-slate-800 uppercase font-mono tracking-wider">{t.detailContactAddress}</p>
             <p className="text-slate-600"><strong>{t.detailAddress}:</strong> {b.fullAddress || '—'} {b.postalCode ? `(${b.postalCode})` : ''}</p>
+            <p className="text-slate-600"><strong>{t.detailEmail}:</strong> {b.email || '—'}</p>
             <p className="text-slate-600">
               <strong>{t.detailPhone}:</strong>{' '}
               {b.phone ? (
@@ -1734,7 +1893,6 @@ function DetailModal({ b, lang, onClose }: { b: Business; lang: Language; onClos
                 '—'
               )}
             </p>
-            <p className="text-slate-600"><strong>{t.detailEmail}:</strong> {b.email || '—'}</p>
           </div>
 
           <div className="space-y-2">
@@ -1943,11 +2101,10 @@ function TeamManagementView({
                       disabled={!canChangeRoles}
                       value={u.role}
                       onChange={e => onUpdateUserRole(u.email, e.target.value as Role)}
-                      className={`text-xs font-bold font-mono px-3 py-1.5 rounded-xl border transition-all ${
-                        canChangeRoles
-                          ? 'bg-white border-slate-300 text-slate-900 cursor-pointer hover:border-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900'
-                          : 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
-                      }`}
+                      className={`text-xs font-bold font-mono px-3 py-1.5 rounded-xl border transition-all ${canChangeRoles
+                        ? 'bg-white border-slate-300 text-slate-900 cursor-pointer hover:border-slate-400 focus:border-slate-900 focus:ring-1 focus:ring-slate-900'
+                        : 'bg-slate-100 border-slate-200 text-slate-500 cursor-not-allowed'
+                        }`}
                     >
                       <option value="Sales Manager">Sales Manager</option>
                       <option value="Coordinator">Coordinator</option>
@@ -2011,11 +2168,10 @@ function TeamManagementView({
                       key={sdr}
                       type="button"
                       onClick={() => handleToggleSdr(sdr)}
-                      className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all text-left flex items-center justify-between ${
-                        isSelected
-                          ? 'bg-slate-900 text-white border-slate-900 font-bold shadow-xs'
-                          : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
-                      }`}
+                      className={`px-3 py-2 rounded-xl text-xs font-medium border transition-all text-left flex items-center justify-between ${isSelected
+                        ? 'bg-slate-900 text-white border-slate-900 font-bold shadow-xs'
+                        : 'bg-white text-slate-700 border-slate-200 hover:border-slate-300'
+                        }`}
                     >
                       <span>{sdr}</span>
                       <span>{isSelected ? '✓' : '+'}</span>
@@ -2155,7 +2311,7 @@ function ProfileModal({
     let finalAvatarUrl = avatarPreview
 
     if (newImageBase64 && newImageMime) {
-      const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+      const scriptUrl = SCRIPT_URL
       if (scriptUrl) {
         try {
           const uploadRes = await fetch(scriptUrl, {
@@ -2179,7 +2335,7 @@ function ProfileModal({
       }
     }
 
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
     if (scriptUrl) {
       try {
         await fetch(scriptUrl, {
@@ -2220,7 +2376,7 @@ function ProfileModal({
     }
 
     setChangingPass(true)
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
     if (!scriptUrl) {
       alert("URL Google Apps Script tidak diset.")
       setChangingPass(false)
@@ -2309,17 +2465,15 @@ function ProfileModal({
         <div className="flex border-b border-slate-200 bg-slate-50 mt-4">
           <button
             onClick={() => setTab('profile')}
-            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-              tab === 'profile' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${tab === 'profile' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
           >
             {t.tabProfile}
           </button>
           <button
             onClick={() => setTab('password')}
-            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${
-              tab === 'password' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-900'
-            }`}
+            className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider border-b-2 transition-all ${tab === 'password' ? 'border-slate-900 text-slate-900 bg-white' : 'border-transparent text-slate-500 hover:text-slate-900'
+              }`}
           >
             {t.tabPassword}
           </button>
@@ -2379,160 +2533,7 @@ function ProfileModal({
   )
 }
 
-// ─── Approvals Page ───────────────────────────────────────────────────────────
 
-function ApprovalRequests({
-  requests,
-  user,
-  lang,
-  onApprove,
-  onReject,
-}: {
-  requests: EditRequest[]
-  user: User
-  lang: Language
-  onApprove: (req: EditRequest) => void
-  onReject: (req: EditRequest) => void
-}) {
-  const t = TRANSLATIONS[lang]
-  const [selectedReq, setSelectedReq] = useState<EditRequest | null>(null)
-  const pendingRequests = requests.filter(r => r.status === 'pending')
-
-  return (
-    <div className="space-y-6">
-      <div>
-        <h1 className="text-2xl font-bold text-slate-900 font-sans">{t.approvalsTitle}</h1>
-        <p className="text-sm text-slate-500 mt-1">{t.approvalsSub}</p>
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-        <KpiCard
-          label={t.pendingCount}
-          value={String(pendingRequests.length)}
-          sub={t.needsReview}
-          icon={<IconApprovals className="w-5 h-5" />}
-          variant="amber"
-        />
-        <KpiCard
-          label={t.totalRequests}
-          value={String(requests.length)}
-          sub={t.allRequests}
-          icon={<IconBuilding className="w-5 h-5" />}
-          variant="indigo"
-        />
-      </div>
-
-      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
-        <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-          <p className="text-sm font-bold text-slate-900 font-sans">{t.queueTitle}</p>
-          <span className="text-xs font-mono font-bold px-2.5 py-1 bg-amber-100 text-amber-800 rounded-full">
-            {pendingRequests.length} Pending
-          </span>
-        </div>
-
-        {pendingRequests.length === 0 ? (
-          <div className="py-16 text-center text-slate-500 text-sm font-mono">{t.noPendingReqs}</div>
-        ) : (
-          <div className="divide-y divide-slate-100">
-            {pendingRequests.map(req => (
-              <div key={req.requestId} className="p-5 hover:bg-slate-50 flex flex-col sm:flex-row sm:items-center justify-between gap-4 transition-colors">
-                <div>
-                  <div className="flex items-center gap-2">
-                    <span className="font-bold text-slate-900 text-sm">{req.businessName}</span>
-                    <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-indigo-50 text-indigo-700 border border-indigo-200 rounded">
-                      SDR: {req.sdrName}
-                    </span>
-                  </div>
-                  <p className="text-xs text-slate-500 font-mono mt-1">
-                    {lang === 'id' ? 'Diajukan oleh' : 'Submitted by'}: <strong className="text-slate-700">{req.requesterName}</strong> ({req.requesterRole}) · {new Date(req.timestamp).toLocaleString(lang === 'id' ? 'id-ID' : 'en-US')}
-                  </p>
-                </div>
-                <div className="flex items-center gap-2">
-                  <button
-                    onClick={() => setSelectedReq(req)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg shadow-2xs"
-                  >
-                    {t.reviewChanges}
-                  </button>
-                  <button
-                    onClick={() => onApprove(req)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 rounded-lg shadow-2xs"
-                  >
-                    Approve
-                  </button>
-                  <button
-                    onClick={() => onReject(req)}
-                    className="px-3 py-1.5 text-xs font-semibold bg-rose-50 text-rose-700 hover:bg-rose-100 rounded-lg border border-rose-200"
-                  >
-                    Reject
-                  </button>
-                </div>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* Review Modal */}
-      {selectedReq && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden border border-slate-200 flex flex-col max-h-[85vh]">
-            <div className="px-6 py-4 border-b border-slate-200 flex items-center justify-between bg-slate-50">
-              <div>
-                <h2 className="text-base font-bold text-slate-900 font-sans">{t.reviewChanges}: {selectedReq.businessName}</h2>
-                <p className="text-xs text-slate-500 font-mono mt-0.5">
-                  {lang === 'id' ? 'Pemohon' : 'Requester'}: {selectedReq.requesterName} ({selectedReq.requesterRole})
-                </p>
-              </div>
-              <button onClick={() => setSelectedReq(null)} className="w-8 h-8 rounded-lg bg-white border border-slate-200 hover:bg-slate-100 flex items-center justify-center text-slate-500 text-sm">✕</button>
-            </div>
-
-            <div className="p-6 overflow-y-auto flex-1 space-y-4 text-xs font-mono">
-              <p className="text-slate-600 font-sans">{t.diffNote}</p>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
-                  <p className="font-bold text-slate-700 uppercase tracking-wider">{lang === 'id' ? 'Data Saat Ini (Lama)' : 'Current Data'}</p>
-                  <p><strong>{t.thHours}:</strong> {selectedReq.originalData?.hours || 0} hrs</p>
-                  <p><strong>{t.thHardware}:</strong> {selectedReq.originalData?.hardware || '—'}</p>
-                  <p><strong>{t.thRate}:</strong> ${selectedReq.originalData?.rate || 0}/hr</p>
-                  <p><strong>{t.thCity}:</strong> {selectedReq.originalData?.city || '—'}</p>
-                  <p><strong>{t.thPhone}:</strong> {selectedReq.originalData?.phone || '—'}</p>
-                  <p><strong>Status:</strong> {selectedReq.originalData?.status || '—'}</p>
-                </div>
-
-                <div className="p-4 bg-emerald-50/60 rounded-xl border border-emerald-200 space-y-2">
-                  <p className="font-bold text-emerald-800 uppercase tracking-wider">{lang === 'id' ? 'Perubahan yang Diajukan (Baru)' : 'Proposed New Data'}</p>
-                  <p><strong>{t.thHours}:</strong> {selectedReq.updatedData?.hours || 0} hrs</p>
-                  <p><strong>{t.thHardware}:</strong> {selectedReq.updatedData?.hardware || '—'}</p>
-                  <p><strong>{t.thRate}:</strong> ${selectedReq.updatedData?.rate || 0}/hr</p>
-                  <p><strong>{t.thCity}:</strong> {selectedReq.updatedData?.city || '—'}</p>
-                  <p><strong>{t.thPhone}:</strong> {selectedReq.updatedData?.phone || '—'}</p>
-                  <p className="text-emerald-700 font-bold"><strong>Status:</strong> approved</p>
-                </div>
-              </div>
-            </div>
-
-            <div className="p-4 border-t border-slate-200 bg-slate-50 flex items-center justify-end gap-3">
-              <button
-                onClick={() => { onReject(selectedReq); setSelectedReq(null) }}
-                className="px-4 py-2 text-xs font-semibold text-rose-700 bg-rose-50 border border-rose-200 rounded-lg hover:bg-rose-100"
-              >
-                {t.rejectRequest}
-              </button>
-              <button
-                onClick={() => { onApprove(selectedReq); setSelectedReq(null) }}
-                className="px-4 py-2 text-xs font-semibold text-white bg-emerald-600 rounded-lg hover:bg-emerald-700 shadow-xs"
-              >
-                {t.approveAndApply}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
 
 // ─── Dashboard ────────────────────────────────────────────────────────────────
 
@@ -2693,49 +2694,43 @@ function Dashboard({
           <div className="flex flex-wrap items-center gap-1">
             <button
               onClick={() => handlePresetChange('all')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                datePreset === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${datePreset === 'all' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               {t.filterAllTime}
             </button>
             <button
               onClick={() => handlePresetChange('today')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                datePreset === 'today' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${datePreset === 'today' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               {t.filterToday}
             </button>
             <button
               onClick={() => handlePresetChange('this_week')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                datePreset === 'this_week' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${datePreset === 'this_week' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               {t.filterThisWeek}
             </button>
             <button
               onClick={() => handlePresetChange('this_month')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                datePreset === 'this_month' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${datePreset === 'this_month' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               {t.filterThisMonth}
             </button>
             <button
               onClick={() => handlePresetChange('last_month')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                datePreset === 'last_month' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${datePreset === 'last_month' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               {t.filterLastMonth}
             </button>
             <button
               onClick={() => handlePresetChange('last_30')}
-              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${
-                datePreset === 'last_30' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
-              }`}
+              className={`px-2.5 py-1 text-xs font-semibold rounded-lg transition-all ${datePreset === 'last_30' ? 'bg-slate-900 text-white' : 'text-slate-600 hover:bg-slate-100'
+                }`}
             >
               {t.filterLast30Days}
             </button>
@@ -2803,10 +2798,10 @@ function Dashboard({
           variant="emerald"
         />
         <KpiCard
-          label={lang === 'id' ? 'Menunggu Approval' : 'Pending Approval'}
-          value={String(filteredBusinesses.filter(b => b.status === 'pending').length)}
-          sub={lang === 'id' ? 'Membutuhkan verifikasi' : 'Requires verification'}
-          icon={<IconApprovals className="w-5 h-5" />}
+          label={lang === 'id' ? 'Dokumen Agreement' : 'Agreements Generated'}
+          value={String(filteredBusinesses.filter(b => b.agreementLink).length)}
+          sub={lang === 'id' ? 'Tersimpan di Google Drive' : 'Archived in Google Drive'}
+          icon={<IconFileText className="w-5 h-5" />}
           variant="amber"
         />
       </div>
@@ -2878,6 +2873,7 @@ function AllBusinesses({
   onQuickToggleStatus,
   onSyncShootStatus,
   isSyncingShootStatus,
+  onGenerateAgreement,
 }: {
   businesses: Business[]
   user: User
@@ -2889,6 +2885,7 @@ function AllBusinesses({
   onQuickToggleStatus: (b: Business, newStatus: Status) => void
   onSyncShootStatus: () => void
   isSyncingShootStatus: boolean
+  onGenerateAgreement?: (b: Business) => void
 }) {
   const t = TRANSLATIONS[lang]
   const [search, setSearch] = useState('')
@@ -2917,7 +2914,7 @@ function AllBusinesses({
           <h1 className="text-2xl font-bold text-slate-900 font-sans">{t.allBizTitle}</h1>
           <p className="text-xs text-slate-500 font-mono mt-1">{t.entriesCount(filtered.length, userBusinesses.length)}</p>
         </div>
-        
+
         <div className="flex items-center gap-2 flex-wrap">
           <button
             onClick={onAdd}
@@ -2991,11 +2988,6 @@ function AllBusinesses({
                     <tr key={b.id} className="hover:bg-slate-50 transition-colors">
                       <td className="px-5 py-3.5">
                         <p className="font-bold text-slate-900 text-xs">{b.businessName}</p>
-                        {b.hasPendingEdit && (
-                          <span className="inline-block mt-0.5 px-1.5 py-0.2 text-[9px] font-mono font-bold bg-amber-100 text-amber-800 rounded">
-                            {t.editPending}
-                          </span>
-                        )}
                       </td>
                       <td className="px-5 py-3.5 text-slate-600 font-medium">{b.sdrName}</td>
                       <td className="px-5 py-3.5 text-slate-500 font-mono">{b.submissionDate}</td>
@@ -3018,9 +3010,8 @@ function AllBusinesses({
                       {/* Shoot Progress Badge */}
                       <td className="px-5 py-3.5 font-mono">
                         <div className="flex flex-col">
-                          <span className={`inline-flex items-center gap-1 font-bold ${
-                            isMaxShoot ? 'text-emerald-700' : isRunningShoot ? 'text-indigo-700' : 'text-slate-400'
-                          }`}>
+                          <span className={`inline-flex items-center gap-1 font-bold ${isMaxShoot ? 'text-emerald-700' : isRunningShoot ? 'text-indigo-700' : 'text-slate-400'
+                            }`}>
                             {shootH}h / {b.hours}h
                           </span>
                           <span className="text-[10px] text-slate-500 font-sans">
@@ -3028,7 +3019,7 @@ function AllBusinesses({
                           </span>
                         </div>
                       </td>
-                      
+
                       {/* Status Dropdown (Quick toggle - only if user can edit this business) */}
                       <td className="px-5 py-3.5">
                         {canEditBusiness(user, b) ? (
@@ -3045,20 +3036,42 @@ function AllBusinesses({
                             <option value="Fraud">{getStatusLabel('Fraud', lang)}</option>
                           </select>
                         ) : (
-                          <span className={`inline-flex text-[11px] font-bold font-mono px-2 py-1 rounded-lg border ${STATUS_COLORS[b.status] || STATUS_COLORS.Running}`}>
+                          <span className={`inline-flex text-[11px] font-bold font-mono px-2 py-1 rounded-lg border ${STATUS_COLORS[b.status] || STATUS_COLORS.Running}`}
+                          >
                             {getStatusLabel(b.status, lang)}
                           </span>
                         )}
                       </td>
 
                       <td className="px-5 py-3.5">
-                        <div className="flex items-center gap-1.5">
+                        <div className="flex items-center gap-1.5 flex-wrap">
                           <button onClick={() => onView(b)} className="px-2.5 py-1 text-[11px] font-semibold bg-slate-100 text-slate-700 hover:bg-slate-200 rounded-md">
                             {lang === 'id' ? 'Lihat' : 'View'}
                           </button>
                           {canEditBusiness(user, b) && (
                             <button onClick={() => onEdit(b)} className="px-2.5 py-1 text-[11px] font-semibold bg-indigo-50 text-indigo-700 hover:bg-indigo-100 rounded-md">
                               Edit
+                            </button>
+                          )}
+                          {b.agreementLink ? (
+                            <a
+                              href={b.agreementLink}
+                              target="_blank"
+                              rel="noreferrer"
+                              className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md inline-flex items-center gap-1"
+                              title={lang === 'id' ? 'Buka Dokumen Agreement di Google Drive' : 'Open Agreement in Google Drive'}
+                            >
+                              <span>Agreement</span>
+                              <span className="text-[10px]">↗</span>
+                            </a>
+                          ) : (
+                            <button
+                              type="button"
+                              onClick={() => onGenerateAgreement && onGenerateAgreement(b)}
+                              className="px-2 py-1 text-[10px] font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-md inline-flex items-center gap-1"
+                              title={lang === 'id' ? 'Auto-Generate Agreement ke Drive' : 'Auto-Generate Agreement to Drive'}
+                            >
+                              <span>+ Agreement</span>
                             </button>
                           )}
                           {(user.role === 'Sales Manager' || user.role === 'Coordinator') && (
@@ -3216,9 +3229,8 @@ function SDRDirectory({
                               <p className="text-[10px] text-slate-400">{b.city || 'Tangerang'}</p>
                             </div>
                             <div className="text-right shrink-0">
-                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${
-                                b.status === 'Running' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
-                              }`}>
+                              <span className={`text-[10px] font-bold px-2 py-0.5 rounded ${b.status === 'Running' ? 'bg-emerald-100 text-emerald-800' : 'bg-slate-200 text-slate-700'
+                                }`}>
                                 {b.status}
                               </span>
                             </div>
@@ -3368,7 +3380,7 @@ function ShootReport({
       const totalBizHours = Math.round(filteredKits.reduce((s, k) => s + k.totalHours, 0) * 100) / 100
       const totalBizVideos = filteredKits.reduce((s, k) => s + k.totalVideos, 0)
       const utilPercent = bg.targetHours > 0 ? Math.min(100, Math.round((totalBizHours / bg.targetHours) * 100)) : 0
-      
+
       // Determine shoot operational status:
       // If 0 hours / no reports in this period -> Stopped
       let shootStatus: 'Maksimal' | 'Sedang Berjalan' | 'Stopped' = 'Stopped'
@@ -3450,49 +3462,43 @@ function ShootReport({
           <span className="text-xs font-semibold text-slate-700 font-sans mr-1">{t.filterDateRange}:</span>
           <button
             onClick={() => handlePresetChange('all')}
-            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              datePreset === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${datePreset === 'all' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             {t.filterAllTime}
           </button>
           <button
             onClick={() => handlePresetChange('today')}
-            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              datePreset === 'today' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${datePreset === 'today' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             {t.filterToday}
           </button>
           <button
             onClick={() => handlePresetChange('this_week')}
-            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              datePreset === 'this_week' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${datePreset === 'this_week' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             {t.filterThisWeek}
           </button>
           <button
             onClick={() => handlePresetChange('this_month')}
-            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              datePreset === 'this_month' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${datePreset === 'this_month' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             {t.filterThisMonth}
           </button>
           <button
             onClick={() => handlePresetChange('last_month')}
-            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              datePreset === 'last_month' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${datePreset === 'last_month' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             {t.filterLastMonth}
           </button>
           <button
             onClick={() => handlePresetChange('last_30')}
-            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${
-              datePreset === 'last_30' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
-            }`}
+            className={`px-2.5 py-1.5 text-xs font-semibold rounded-xl transition-all ${datePreset === 'last_30' ? 'bg-slate-900 text-white' : 'bg-slate-100 text-slate-600 hover:bg-slate-200'
+              }`}
           >
             {t.filterLast30Days}
           </button>
@@ -3669,18 +3675,17 @@ function ShootReport({
                         </span>
 
                         {/* Shoot status badge: Stopped if 0 hours / no reports */}
-                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold font-mono ${
-                          bg.shootStatus === 'Maksimal'
-                            ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
-                            : bg.shootStatus === 'Sedang Berjalan'
+                        <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold font-mono ${bg.shootStatus === 'Maksimal'
+                          ? 'bg-emerald-50 text-emerald-800 border border-emerald-300'
+                          : bg.shootStatus === 'Sedang Berjalan'
                             ? 'bg-indigo-50 text-indigo-800 border border-indigo-300'
                             : 'bg-rose-50 text-rose-700 border border-rose-200'
-                        }`}>
+                          }`}>
                           {bg.shootStatus === 'Maksimal'
                             ? t.statusMaksimal
                             : bg.shootStatus === 'Sedang Berjalan'
-                            ? t.statusBerjalan
-                            : t.statusStopped}
+                              ? t.statusBerjalan
+                              : t.statusStopped}
                         </span>
 
                         {/* CRM Status badge */}
@@ -3712,13 +3717,12 @@ function ShootReport({
                       </div>
                       <div className="w-48 h-2 bg-slate-100 rounded-full overflow-hidden border border-slate-200">
                         <div
-                          className={`h-full rounded-full transition-all ${
-                            bg.shootStatus === 'Maksimal'
-                              ? 'bg-emerald-500'
-                              : bg.shootStatus === 'Sedang Berjalan'
+                          className={`h-full rounded-full transition-all ${bg.shootStatus === 'Maksimal'
+                            ? 'bg-emerald-500'
+                            : bg.shootStatus === 'Sedang Berjalan'
                               ? 'bg-indigo-600'
                               : 'bg-slate-300'
-                          }`}
+                            }`}
                           style={{ width: `${Math.min(100, bg.utilPercent || (bg.totalHours > 0 ? 50 : 0))}%` }}
                         />
                       </div>
@@ -3764,13 +3768,12 @@ function ShootReport({
                                 <span className="font-bold text-indigo-900 bg-indigo-50 border border-indigo-200 px-2.5 py-0.5 rounded">
                                   📦 {k.kitCode}
                                 </span>
-                                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold ${
-                                  k.isMaximal
-                                    ? 'bg-emerald-100 text-emerald-800'
-                                    : k.totalHours > 0
+                                <span className={`px-2.5 py-0.5 rounded text-[10px] font-bold ${k.isMaximal
+                                  ? 'bg-emerald-100 text-emerald-800'
+                                  : k.totalHours > 0
                                     ? 'bg-indigo-100 text-indigo-800'
                                     : 'bg-slate-200 text-slate-700'
-                                }`}>
+                                  }`}>
                                   {k.totalHours} hrs · {k.totalVideos} videos
                                 </span>
                               </div>
@@ -3841,12 +3844,121 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState('')
 
+  // Google OAuth State & Ref
+  const googleBtnRef = useRef<HTMLDivElement>(null)
+  const [showGoogleModal, setShowGoogleModal] = useState(false)
+  const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('crm_google_client_id') || '')
+  const [demoEmail, setDemoEmail] = useState('')
+  const [demoName, setDemoName] = useState('')
+
+  const effectiveGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || customClientId
+
+  const handleGoogleAuth = async (info: { email: string; name?: string; avatarUrl?: string; googleId?: string }) => {
+    setLoading(true)
+    setError('')
+    const scriptUrl = SCRIPT_URL
+
+    if (!scriptUrl) {
+      setError(lang === 'id' ? 'URL Google Apps Script tidak diset' : 'Google Apps Script URL is not configured')
+      setLoading(false)
+      return
+    }
+
+    try {
+      const res = await fetch(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'google_login',
+          email: info.email,
+          name: info.name || info.email.split('@')[0],
+          avatarUrl: info.avatarUrl || '',
+          googleId: info.googleId || '',
+          userAgent: navigator.userAgent
+        })
+      })
+      const data = await res.json()
+      if (data.success) {
+        const authUser: User = {
+          name: data.name || (data.user && data.user.name) || info.name || info.email,
+          email: data.email || (data.user && data.user.email) || info.email,
+          role: (data.role || (data.user && data.user.role) || 'SDR') as Role,
+          avatarUrl: data.avatarUrl || (data.user && data.user.avatarUrl) || info.avatarUrl || '',
+          dedicatedSdrs: data.dedicatedSdrs || (data.user && data.user.dedicatedSdrs) || []
+        }
+        localStorage.setItem('crm_user', JSON.stringify(authUser))
+        onLogin(authUser)
+      } else {
+        setError(data.error || (lang === 'id' ? 'Google Sign-In gagal.' : 'Google Sign-In failed.'))
+      }
+    } catch (err: any) {
+      setError(err.toString())
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  // Initialize Google Identity Services
+  useEffect(() => {
+    if (!effectiveGoogleClientId) return
+
+    const initGsi = () => {
+      if (window.google?.accounts?.id && googleBtnRef.current) {
+        try {
+          window.google.accounts.id.initialize({
+            client_id: effectiveGoogleClientId,
+            callback: (res: any) => {
+              if (res && res.credential) {
+                const payload = parseJwt(res.credential)
+                if (payload && payload.email) {
+                  handleGoogleAuth({
+                    email: payload.email,
+                    name: payload.name || payload.given_name || payload.email.split('@')[0],
+                    avatarUrl: payload.picture || '',
+                    googleId: payload.sub || ''
+                  })
+                }
+              }
+            },
+            auto_select: false,
+          })
+
+          googleBtnRef.current.innerHTML = ''
+          window.google.accounts.id.renderButton(googleBtnRef.current, {
+            theme: 'outline',
+            size: 'large',
+            width: 380,
+            text: 'signin_with',
+            shape: 'rectangular',
+            logo_alignment: 'left',
+          })
+        } catch (e) {
+          console.warn('Google Identity Services init error:', e)
+        }
+      }
+    }
+
+    initGsi()
+    const timer = setTimeout(initGsi, 800)
+    return () => clearTimeout(timer)
+  }, [effectiveGoogleClientId])
+
+  const handleCustomGoogleClick = () => {
+    if (effectiveGoogleClientId && window.google?.accounts?.id) {
+      try {
+        window.google.accounts.id.prompt()
+        return
+      } catch (e) { }
+    }
+    setShowGoogleModal(true)
+  }
+
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault()
     setLoading(true)
     setError('')
 
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
 
     if (email === 'admin@crm.com' && password === 'admin123') {
       const adminUser: User = { role: 'Sales Manager', name: 'Admin', email, avatarUrl: '', dedicatedSdrs: [] }
@@ -3872,6 +3984,7 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
           password,
           name: mode === 'signup' ? name : undefined,
           role: mode === 'signup' ? role : undefined,
+          userAgent: navigator.userAgent
         })
       })
       const data = await res.json()
@@ -3917,6 +4030,28 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
             {error}
           </div>
         )}
+
+        {/* Google Sign In Section */}
+        <div className="space-y-3 mb-5">
+          <div ref={googleBtnRef} className="flex justify-center w-full min-h-[44px]">
+            <button
+              type="button"
+              onClick={handleCustomGoogleClick}
+              disabled={loading}
+              className="w-full py-3 px-4 border border-slate-300 rounded-xl text-xs font-bold text-slate-700 bg-white hover:bg-slate-50 transition-colors flex items-center justify-center gap-3 shadow-2xs hover:shadow-xs"
+            >
+              <IconGoogle className="w-4 h-4" />
+              <span>{lang === 'id' ? 'Masuk dengan Google' : 'Sign in with Google'}</span>
+            </button>
+          </div>
+        </div>
+
+        <div className="relative flex items-center justify-center mb-5">
+          <div className="border-t border-slate-200 w-full"></div>
+          <span className="bg-white px-3 text-[11px] text-slate-400 font-mono uppercase tracking-wider absolute">
+            {lang === 'id' ? 'atau email & password' : 'or email & password'}
+          </span>
+        </div>
 
         <form onSubmit={handleAuth} className="space-y-4">
           {mode === 'signup' && (
@@ -3964,6 +4099,564 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
           )}
         </div>
       </div>
+
+      {/* Google Setup / Quick Sign-In Modal */}
+      {showGoogleModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white rounded-3xl shadow-2xl w-full max-w-md p-6 border border-slate-200">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+              <div className="flex items-center gap-2">
+                <IconGoogle className="w-5 h-5" />
+                <h3 className="font-bold text-slate-900 font-sans text-sm">
+                  {lang === 'id' ? 'Google Sign-In Authentication' : 'Google Sign-In Setup'}
+                </h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => setShowGoogleModal(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm w-7 h-7 flex items-center justify-center rounded-lg hover:bg-slate-100"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="py-4 space-y-4 text-xs text-slate-600">
+              <div className="p-3 bg-indigo-50 border border-indigo-100 rounded-xl text-indigo-900 space-y-1">
+                <p className="font-bold">
+                  {lang === 'id' ? 'Autentikasi Akun Google' : 'Google Account Sign-In'}
+                </p>
+                <p className="text-[11px] text-indigo-700">
+                </p>
+              </div>
+              {/* Quick Sign-In */}
+              <div className="space-y-3">
+                <p className="font-semibold text-slate-800">
+                  {lang === 'id' ? 'Masuk dengan Akun Google:' : 'Sign in with Google Account:'}
+                </p>
+                <Field label="Google Email" required>
+                  <input
+                    type="email"
+                    className="form-input text-xs"
+                    placeholder="nama.anda@gmail.com"
+                    value={demoEmail}
+                    onChange={e => setDemoEmail(e.target.value)}
+                  />
+                </Field>
+                <Field label={lang === 'id' ? 'Nama Tampilan' : 'Display Name'}>
+                  <input
+                    className="form-input text-xs"
+                    placeholder="Nama Lengkap"
+                    value={demoName}
+                    onChange={e => setDemoName(e.target.value)}
+                  />
+                </Field>
+                <button
+                  type="button"
+                  disabled={!demoEmail || loading}
+                  onClick={() => {
+                    setShowGoogleModal(false)
+                    handleGoogleAuth({
+                      email: demoEmail,
+                      name: demoName || demoEmail.split('@')[0],
+                      avatarUrl: '',
+                      googleId: 'google-' + Date.now()
+                    })
+                  }}
+                  className="w-full py-2.5 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold uppercase tracking-wider text-xs transition-colors disabled:opacity-50 flex items-center justify-center gap-2"
+                >
+                  <IconGoogle className="w-3.5 h-3.5" />
+                  <span>{lang === 'id' ? 'Lanjutkan Masuk' : 'Continue Sign In'}</span>
+                </button>
+              </div>
+
+              {/* Client ID Configuration Section */}
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <details className="text-slate-500">
+                  <summary className="font-semibold cursor-pointer hover:text-slate-800">
+                    {lang === 'id' ? '⚙️ Konfigurasi Google OAuth Client ID (.env)' : '⚙️ Configure Google OAuth Client ID (.env)'}
+                  </summary>
+                  <div className="mt-2 space-y-2 text-[11px] bg-slate-50 p-3 rounded-xl border border-slate-200">
+                    <p>
+                      {lang === 'id'
+                        ? 'Untuk tombol resmi Google One Tap, masukkan Client ID dari Google Cloud Console ke file .env:'
+                        : 'For official Google One Tap button, set your Client ID in .env:'}
+                    </p>
+                    <code className="block p-1.5 bg-white border border-slate-200 rounded font-mono text-[10px] text-slate-800">
+                      VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
+                    </code>
+                    <input
+                      type="text"
+                      className="form-input text-[11px]"
+                      placeholder="Paste Client ID disini..."
+                      value={customClientId}
+                      onChange={e => {
+                        setCustomClientId(e.target.value)
+                        localStorage.setItem('crm_google_client_id', e.target.value)
+                      }}
+                    />
+                  </div>
+                </details>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
+// ─── Activity / Audit Logs View (Safety & Tracking) ───────────────────────────
+
+function ActivityLogsView({
+  logs,
+  user,
+  lang,
+  onRefresh,
+  isSyncing
+}: {
+  logs: ActivityLog[]
+  user: User
+  lang: Language
+  onRefresh: () => void
+  isSyncing?: boolean
+}) {
+  const [search, setSearch] = useState('')
+  const [actionFilter, setActionFilter] = useState<string>('ALL')
+  const [roleFilter, setRoleFilter] = useState<string>('ALL')
+  const [selectedBackup, setSelectedBackup] = useState<{
+    businessName: string
+    sdrName: string
+    actorName: string
+    timestamp: string
+    backupData: any
+  } | null>(null)
+
+  // Filter logs
+  const filteredLogs = useMemo(() => {
+    return logs.filter(log => {
+      // Search
+      if (search.trim()) {
+        const q = search.toLowerCase()
+        const matchBiz = (log.businessName || '').toLowerCase().includes(q)
+        const matchSdr = (log.sdrName || '').toLowerCase().includes(q)
+        const matchActor = (log.actorName || '').toLowerCase().includes(q) || (log.actorEmail || '').toLowerCase().includes(q)
+        const matchDetails = (log.details || '').toLowerCase().includes(q)
+        if (!matchBiz && !matchSdr && !matchActor && !matchDetails) return false
+      }
+
+      // Action Filter
+      if (actionFilter !== 'ALL') {
+        if (actionFilter === 'ADD' && log.actionType !== 'ADD_BUSINESS') return false
+        if (actionFilter === 'EDIT' && log.actionType !== 'EDIT_BUSINESS' && log.actionType !== 'APPROVE_EDIT') return false
+        if (actionFilter === 'DELETE' && log.actionType !== 'DELETE_BUSINESS') return false
+        if (actionFilter === 'STATUS' && log.actionType !== 'UPDATE_STATUS') return false
+      }
+
+      // Role Filter
+      if (roleFilter !== 'ALL') {
+        if ((log.actorRole || '').toLowerCase() !== roleFilter.toLowerCase()) return false
+      }
+
+      return true
+    })
+  }, [logs, search, actionFilter, roleFilter])
+
+  // Statistics
+  const stats = useMemo(() => {
+    let addCount = 0
+    let editCount = 0
+    let deleteCount = 0
+    let statusCount = 0
+    logs.forEach(l => {
+      if (l.actionType === 'ADD_BUSINESS') addCount++
+      else if (l.actionType === 'EDIT_BUSINESS' || l.actionType === 'APPROVE_EDIT') editCount++
+      else if (l.actionType === 'DELETE_BUSINESS') deleteCount++
+      else if (l.actionType === 'UPDATE_STATUS') statusCount++
+    })
+    return { total: logs.length, addCount, editCount, deleteCount, statusCount }
+  }, [logs])
+
+  const formatTimestamp = (ts: string) => {
+    if (!ts) return '—'
+    try {
+      const d = new Date(ts)
+      if (isNaN(d.getTime())) return ts
+      return d.toLocaleString(lang === 'id' ? 'id-ID' : 'en-US', {
+        day: '2-digit',
+        month: 'short',
+        year: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit',
+        second: '2-digit'
+      })
+    } catch {
+      return ts
+    }
+  }
+
+  const getRelativeTime = (ts: string) => {
+    if (!ts) return ''
+    try {
+      const d = new Date(ts)
+      if (isNaN(d.getTime())) return ''
+      const diffSec = Math.floor((Date.now() - d.getTime()) / 1000)
+      if (diffSec < 60) return lang === 'id' ? 'Baru saja' : 'Just now'
+      const diffMin = Math.floor(diffSec / 60)
+      if (diffMin < 60) return `${diffMin} ${lang === 'id' ? 'menit lalu' : 'mins ago'}`
+      const diffHour = Math.floor(diffMin / 60)
+      if (diffHour < 24) return `${diffHour} ${lang === 'id' ? 'jam lalu' : 'hours ago'}`
+      const diffDay = Math.floor(diffHour / 24)
+      return `${diffDay} ${lang === 'id' ? 'hari lalu' : 'days ago'}`
+    } catch {
+      return ''
+    }
+  }
+
+  const getActionBadge = (actionType: string) => {
+    switch (actionType) {
+      case 'ADD_BUSINESS':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 border border-emerald-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500"></span>
+            {lang === 'id' ? 'Tambah Bisnis' : 'Add Business'}
+          </span>
+        )
+      case 'EDIT_BUSINESS':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-sky-50 text-sky-700 border border-sky-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-sky-500"></span>
+            {lang === 'id' ? 'Edit Bisnis' : 'Edit Business'}
+          </span>
+        )
+      case 'DELETE_BUSINESS':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-rose-50 text-rose-700 border border-rose-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-rose-500 animate-pulse"></span>
+            {lang === 'id' ? 'Hapus Bisnis' : 'Delete Business'}
+          </span>
+        )
+      case 'UPDATE_STATUS':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-purple-50 text-purple-700 border border-purple-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-purple-500"></span>
+            {lang === 'id' ? 'Ubah Status' : 'Status Change'}
+          </span>
+        )
+      case 'APPROVE_EDIT':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-teal-50 text-teal-700 border border-teal-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-teal-500"></span>
+            {lang === 'id' ? 'Approval Edit' : 'Edit Approved'}
+          </span>
+        )
+      case 'REJECT_EDIT':
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-amber-50 text-amber-700 border border-amber-200">
+            <span className="w-1.5 h-1.5 rounded-full bg-amber-500"></span>
+            {lang === 'id' ? 'Tolak Edit' : 'Edit Rejected'}
+          </span>
+        )
+      default:
+        return (
+          <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-slate-100 text-slate-700 border border-slate-200">
+            {actionType}
+          </span>
+        )
+    }
+  }
+
+  const parseDetails = (log: ActivityLog) => {
+    if (!log.details) return { text: '—', backup: null }
+    try {
+      if (typeof log.details === 'string' && log.details.startsWith('{') && log.details.endsWith('}')) {
+        const parsed = JSON.parse(log.details)
+        if (parsed && parsed.backupData) {
+          return {
+            text: `${lang === 'id' ? 'Bisnis' : 'Business'} "${parsed.deletedBusinessName || log.businessName}" (SDR: ${parsed.sdrName || log.sdrName}) ${lang === 'id' ? 'telah dihapus' : 'was deleted'}${parsed.ktpDeleted ? (lang === 'id' ? ' beserta file KTP Google Drive' : ' including Google Drive KTP file') : ''}.`,
+            backup: parsed.backupData
+          }
+        }
+      }
+    } catch { }
+    return { text: log.details, backup: null }
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header Banner */}
+      <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-xs flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div>
+          <div className="flex items-center gap-2 mb-1">
+            <span className="p-1.5 bg-slate-900 text-white rounded-lg">
+              <IconClockHistory className="w-4 h-4" />
+            </span>
+            <h1 className="text-xl font-bold text-slate-900">
+              {lang === 'id' ? 'Audit Trail & Riwayat Aktivitas' : 'Audit Trail & Activity Log'}
+            </h1>
+          </div>
+          <p className="text-xs text-slate-500">
+            {lang === 'id'
+              ? 'Pencatatan real-time aksi tambah, ubah, dan hapus bisnis untuk transparansi operasional dan keamanan data.'
+              : 'Real-time activity audit of all additions, edits, and deletions for operational safety and accountability.'}
+          </p>
+        </div>
+
+        <div className="flex items-center gap-3">
+          <button
+            onClick={onRefresh}
+            disabled={isSyncing}
+            className="flex items-center gap-2 px-3.5 py-2 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-xl text-xs font-semibold transition-colors disabled:opacity-50"
+          >
+            <IconRefresh className="w-3.5 h-3.5" spinning={isSyncing} />
+            <span>{isSyncing ? (lang === 'id' ? 'Menyinkronkan...' : 'Syncing...') : (lang === 'id' ? 'Segarkan Log' : 'Refresh Log')}</span>
+          </button>
+        </div>
+      </div>
+
+      {/* Stats Cards */}
+      <div className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+          <p className="text-xs font-semibold text-slate-500 font-mono uppercase">{lang === 'id' ? 'Total Aktivitas' : 'Total Activities'}</p>
+          <p className="text-2xl font-bold text-slate-900 mt-1">{stats.total}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{lang === 'id' ? 'Tercatat di Spreadsheet' : 'Recorded in Spreadsheet'}</p>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+          <p className="text-xs font-semibold text-emerald-600 font-mono uppercase">{lang === 'id' ? 'Bisnis Ditambah' : 'Businesses Added'}</p>
+          <p className="text-2xl font-bold text-emerald-700 mt-1">{stats.addCount}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{lang === 'id' ? 'Entri baru' : 'New entries'}</p>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+          <p className="text-xs font-semibold text-sky-600 font-mono uppercase">{lang === 'id' ? 'Bisnis Diubah' : 'Businesses Edited'}</p>
+          <p className="text-2xl font-bold text-sky-700 mt-1">{stats.editCount}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{lang === 'id' ? 'Pembaruan data' : 'Data updates'}</p>
+        </div>
+        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs">
+          <p className="text-xs font-semibold text-rose-600 font-mono uppercase">{lang === 'id' ? 'Bisnis Dihapus' : 'Businesses Deleted'}</p>
+          <p className="text-2xl font-bold text-rose-700 mt-1">{stats.deleteCount}</p>
+          <p className="text-[11px] text-slate-400 mt-0.5">{lang === 'id' ? 'Data diarsipkan' : 'Data snapshotted'}</p>
+        </div>
+      </div>
+
+      {/* Filter & Search Bar */}
+      <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-2xs flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="relative flex-1 w-full">
+          <input
+            type="text"
+            className="w-full pl-9 pr-4 py-2 text-xs bg-slate-50 border border-slate-200 rounded-lg focus:outline-none focus:ring-2 focus:ring-slate-900/10 focus:border-slate-900 text-slate-800 placeholder:text-slate-400"
+            placeholder={lang === 'id' ? 'Cari nama bisnis, SDR, email, atau nama pelaku...' : 'Search by business, SDR, email, or actor name...'}
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+          />
+          <svg className="w-4 h-4 text-slate-400 absolute left-3 top-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+        </div>
+
+        <div className="flex items-center gap-2 w-full sm:w-auto overflow-x-auto">
+          <select
+            value={actionFilter}
+            onChange={e => setActionFilter(e.target.value)}
+            className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+          >
+            <option value="ALL">{lang === 'id' ? 'Semua Aksi' : 'All Actions'}</option>
+            <option value="ADD">{lang === 'id' ? 'Tambah (Add)' : 'Add'}</option>
+            <option value="EDIT">{lang === 'id' ? 'Edit / Update' : 'Edit / Update'}</option>
+            <option value="DELETE">{lang === 'id' ? 'Hapus (Delete)' : 'Delete'}</option>
+            <option value="STATUS">{lang === 'id' ? 'Ubah Status' : 'Status Change'}</option>
+          </select>
+
+          <select
+            value={roleFilter}
+            onChange={e => setRoleFilter(e.target.value)}
+            className="text-xs bg-slate-50 border border-slate-200 rounded-lg px-3 py-2 font-medium text-slate-700 focus:outline-none focus:ring-2 focus:ring-slate-900/10"
+          >
+            <option value="ALL">{lang === 'id' ? 'Semua Role' : 'All Roles'}</option>
+            <option value="Sales Manager">Sales Manager</option>
+            <option value="Coordinator">Coordinator</option>
+            <option value="Field Ops">Field Ops</option>
+            <option value="SDR">SDR</option>
+          </select>
+
+          {(search || actionFilter !== 'ALL' || roleFilter !== 'ALL') && (
+            <button
+              onClick={() => { setSearch(''); setActionFilter('ALL'); setRoleFilter('ALL') }}
+              className="px-3 py-2 text-xs font-semibold text-rose-600 hover:bg-rose-50 rounded-lg transition-colors shrink-0"
+            >
+              Reset
+            </button>
+          )}
+        </div>
+      </div>
+
+      {/* Activity Timeline List */}
+      <div className="bg-white rounded-2xl border border-slate-200 shadow-xs overflow-hidden">
+        <div className="px-6 py-4 border-b border-slate-100 flex items-center justify-between">
+          <p className="text-xs font-bold text-slate-800 uppercase tracking-wider font-mono">
+            {lang === 'id' ? `Daftar Riwayat (${filteredLogs.length})` : `Activity Stream (${filteredLogs.length})`}
+          </p>
+          <span className="text-[11px] text-slate-400 font-mono">
+            {lang === 'id' ? 'Diurutkan dari terbaru' : 'Newest first'}
+          </span>
+        </div>
+
+        {filteredLogs.length === 0 ? (
+          <div className="py-16 text-center text-slate-400">
+            <div className="w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center mx-auto mb-3 text-slate-400">
+              <IconClockHistory className="w-6 h-6" />
+            </div>
+            <p className="text-sm font-medium text-slate-600">
+              {lang === 'id' ? 'Belum ada riwayat aktivitas yang tercatat' : 'No activity logs recorded yet'}
+            </p>
+            <p className="text-xs text-slate-400 mt-1">
+              {lang === 'id' ? 'Setiap aksi tambah, ubah, atau hapus bisnis akan otomatis terekam di sini.' : 'Every add, edit, or delete action will automatically be logged here.'}
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y divide-slate-100">
+            {filteredLogs.map(log => {
+              const { text, backup } = parseDetails(log)
+              const relTime = getRelativeTime(log.timestamp)
+              const formattedTime = formatTimestamp(log.timestamp)
+
+              return (
+                <div key={log.logId} className="p-5 hover:bg-slate-50/70 transition-colors flex flex-col md:flex-row md:items-start justify-between gap-4">
+                  <div className="space-y-2 flex-1 min-w-0">
+                    {/* Header: Action Badge, Target Business, SDR */}
+                    <div className="flex flex-wrap items-center gap-2">
+                      {getActionBadge(log.actionType)}
+                      <span className="font-bold text-slate-900 text-sm">{log.businessName || '—'}</span>
+                      {log.sdrName && (
+                        <span className="px-2 py-0.5 text-[10px] font-mono font-bold bg-slate-100 text-slate-700 border border-slate-200 rounded">
+                          SDR: {log.sdrName}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Description */}
+                    <p className="text-xs text-slate-600 font-sans leading-relaxed">
+                      {text}
+                    </p>
+
+                    {/* Deleted Backup Snapshot Button */}
+                    {backup && (
+                      <div className="pt-1">
+                        <button
+                          onClick={() => setSelectedBackup({
+                            businessName: log.businessName,
+                            sdrName: log.sdrName,
+                            actorName: log.actorName,
+                            timestamp: log.timestamp,
+                            backupData: backup
+                          })}
+                          className="inline-flex items-center gap-1.5 px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-700 border border-rose-200 rounded-lg text-xs font-semibold transition-colors shadow-2xs"
+                        >
+                          <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
+                          </svg>
+                          <span>{lang === 'id' ? 'Lihat Cadangan Data Terhapus' : 'View Deleted Data Backup'}</span>
+                        </button>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Right Side: Actor Details & Timestamp */}
+                  <div className="flex flex-row md:flex-col items-start md:items-end justify-between md:justify-start gap-1 shrink-0 border-t md:border-t-0 pt-2 md:pt-0 border-slate-100">
+                    <div className="flex items-center gap-2">
+                      <div className="w-6 h-6 rounded-full bg-slate-800 text-white text-[10px] font-bold flex items-center justify-center font-mono">
+                        {(log.actorName || 'U').charAt(0).toUpperCase()}
+                      </div>
+                      <div className="text-left md:text-right">
+                        <p className="text-xs font-semibold text-slate-900 leading-tight">{log.actorName || 'Unknown'}</p>
+                        <p className="text-[10px] text-slate-400 font-mono leading-tight">
+                          {log.actorRole ? `${log.actorRole} · ` : ''}{log.actorEmail || ''}
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="text-right mt-1">
+                      <p className="text-[11px] font-mono font-medium text-slate-500" title={formattedTime}>
+                        {formattedTime}
+                      </p>
+                      {relTime && (
+                        <p className="text-[10px] text-slate-400 font-mono">
+                          {relTime}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              )
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* Modal: View Deleted Data Backup */}
+      {selectedBackup && (
+        <div className="fixed inset-0 z-50 bg-slate-900/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl max-w-xl w-full max-h-[90vh] overflow-y-auto shadow-2xl border border-slate-200">
+            <div className="p-6 border-b border-slate-100 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="px-2 py-0.5 bg-rose-100 text-rose-700 border border-rose-200 rounded text-[11px] font-mono font-bold">
+                    CADANGAN DATA TERHAPUS
+                  </span>
+                  <span className="text-xs text-slate-400 font-mono">SDR: {selectedBackup.sdrName}</span>
+                </div>
+                <h3 className="text-lg font-bold text-slate-900 mt-1">{selectedBackup.businessName}</h3>
+                <p className="text-xs text-slate-500 font-mono mt-0.5">
+                  Dihapus oleh <strong className="text-slate-700">{selectedBackup.actorName}</strong> pada {formatTimestamp(selectedBackup.timestamp)}
+                </p>
+              </div>
+              <button
+                onClick={() => setSelectedBackup(null)}
+                className="w-8 h-8 rounded-full bg-slate-100 hover:bg-slate-200 text-slate-600 flex items-center justify-center transition-colors"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="p-6 space-y-4 text-xs font-mono">
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <p className="font-bold text-slate-700 uppercase font-sans text-xs mb-2">Informasi Operasional & Hardware</p>
+                <div className="grid grid-cols-2 gap-2 text-slate-700">
+                  <p><strong>Hours Target:</strong> {selectedBackup.backupData?.hours || 0} hrs</p>
+                  <p><strong>Hardware:</strong> {selectedBackup.backupData?.hardware || '—'}</p>
+                  <p><strong>Rate:</strong> ${selectedBackup.backupData?.rate || 0}/hr</p>
+                  <p><strong>Status Terakhir:</strong> {selectedBackup.backupData?.status || '—'}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <p className="font-bold text-slate-700 uppercase font-sans text-xs mb-2">Kontak & Lokasi</p>
+                <div className="space-y-1 text-slate-700">
+                  <p><strong>Kota:</strong> {selectedBackup.backupData?.city || '—'}</p>
+                  <p><strong>Alamat:</strong> {selectedBackup.backupData?.address || '—'}</p>
+                  <p><strong>Email:</strong> {selectedBackup.backupData?.email || '—'}</p>
+                  <p><strong>Telepon:</strong> {selectedBackup.backupData?.phone || '—'}</p>
+                </div>
+              </div>
+
+              <div className="p-4 bg-slate-50 rounded-xl border border-slate-200 space-y-2">
+                <p className="font-bold text-slate-700 uppercase font-sans text-xs mb-2">Informasi Bank</p>
+                <div className="space-y-1 text-slate-700">
+                  <p><strong>Bank:</strong> {selectedBackup.backupData?.bank || '—'}</p>
+                </div>
+              </div>
+            </div>
+
+            <div className="p-4 bg-slate-50 border-t border-slate-100 flex items-center justify-end">
+              <button
+                onClick={() => setSelectedBackup(null)}
+                className="px-4 py-2 bg-slate-900 text-white rounded-xl text-xs font-semibold hover:bg-slate-800 transition-colors shadow-xs"
+              >
+                Tutup
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   )
 }
@@ -3989,6 +4682,7 @@ export default function App() {
   const [businesses, setBusinesses] = useState<Business[]>([])
   const [usersList, setUsersList] = useState<User[]>([])
   const [editRequests, setEditRequests] = useState<EditRequest[]>([])
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
 
   // Raw Shoot Logs & Business Groups
   const [rawShootLogs, setRawShootLogs] = useState<RawShootLogItem[]>([])
@@ -4013,7 +4707,7 @@ export default function App() {
       const cbName = 'gviz_hours_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000)
       const script = document.createElement('script')
       script.src = `https://docs.google.com/spreadsheets/d/1yoGtSR8XJddepxvLkyE_iF42Vfpf5AaV9y4YNbvLl2k/gviz/tq?sheet=hours&tqx=responseHandler:${cbName}`
-      
+
       let timer: any = null
       const cleanup = () => {
         if (timer) clearTimeout(timer)
@@ -4026,10 +4720,10 @@ export default function App() {
         reject(new Error('GViz JSONP timeout'))
       }, 15000)
 
-      ;(window as any)[cbName] = (payload: any) => {
-        cleanup()
-        resolve(payload)
-      }
+        ; (window as any)[cbName] = (payload: any) => {
+          cleanup()
+          resolve(payload)
+        }
 
       script.onerror = (err) => {
         cleanup()
@@ -4046,7 +4740,7 @@ export default function App() {
       const cbName = 'gviz_users_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000)
       const script = document.createElement('script')
       script.src = `https://docs.google.com/spreadsheets/d/1YRSrVZFm3gxTU7ZzCjPWYbMzgHo0EufvMQ9ZQ0XRPM4/gviz/tq?sheet=Users&tqx=responseHandler:${cbName}`
-      
+
       let timer: any = null
       const cleanup = () => {
         if (timer) clearTimeout(timer)
@@ -4059,10 +4753,10 @@ export default function App() {
         reject(new Error('GViz Users JSONP timeout'))
       }, 12000)
 
-      ;(window as any)[cbName] = (payload: any) => {
-        cleanup()
-        resolve(payload)
-      }
+        ; (window as any)[cbName] = (payload: any) => {
+          cleanup()
+          resolve(payload)
+        }
 
       script.onerror = (err) => {
         cleanup()
@@ -4079,16 +4773,16 @@ export default function App() {
       if (gvizData && gvizData.table && Array.isArray(gvizData.table.rows)) {
         const rows = gvizData.table.rows
         const list: User[] = []
-        
+
         let localDedMap: Record<string, string[]> = {}
         try {
           localDedMap = JSON.parse(localStorage.getItem('crm_dedicated_sdrs_map') || '{}')
-        } catch (e) {}
+        } catch (e) { }
 
         let localRoleMap: Record<string, Role> = {}
         try {
           localRoleMap = JSON.parse(localStorage.getItem('crm_user_roles_map') || '{}')
-        } catch (e) {}
+        } catch (e) { }
 
         for (let i = 0; i < rows.length; i++) {
           const r = rows[i]
@@ -4419,7 +5113,7 @@ export default function App() {
 
         const utilPercent = bg.targetHours > 0 ? Math.min(100, Math.round((bg.totalHours / bg.targetHours) * 100)) : 0
         let shootStatus: 'Maksimal' | 'Sedang Berjalan' | 'Stopped' = 'Stopped'
-        
+
         if (bg.totalHours > 0) {
           if (bg.targetHours > 0 && bg.totalHours >= bg.targetHours * 0.9) {
             shootStatus = 'Maksimal'
@@ -4477,7 +5171,7 @@ export default function App() {
   const fetchSheet = async () => {
     try {
       setIsSyncing(true)
-      const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+      const scriptUrl = SCRIPT_URL
       if (!scriptUrl) {
         setIsSyncing(false)
         return
@@ -4495,6 +5189,10 @@ export default function App() {
 
       if (resData && resData.editRequests) {
         setEditRequests(resData.editRequests)
+      }
+
+      if (resData && resData.activityLogs && Array.isArray(resData.activityLogs)) {
+        setActivityLogs(resData.activityLogs)
       }
 
       if (resData && resData.users && Array.isArray(resData.users) && resData.users.length > 0) {
@@ -4598,8 +5296,8 @@ export default function App() {
           city: (row['City'] || '').toString().trim(),
           fullAddress: (row['Address'] || '').toString().trim(),
           postalCode: (row['Post Code'] || '').toString().trim(),
-          phone: normalizePhoneNumber((row['Phone Number'] || '').toString().trim()),
-          email: (row['Email'] || '').toString().trim(),
+          email: (row['Email'] || row['email'] || '').toString().trim(),
+          phone: normalizePhoneNumber((row['Phone Number'] || row['Phone'] || row['Nomor Telepon'] || '').toString().trim()),
           ownerKtp: ownerKtp,
           proposalLink: (row['Proposal'] || '').toString().trim(),
           mouLink: (row['MoU'] || '').toString().trim(),
@@ -4660,7 +5358,7 @@ export default function App() {
 
   // Auto-fetch shoot data & users list whenever navigating to relevant pages
   useEffect(() => {
-    if ((page === 'shoot-report' || page === 'sdr' || page === 'dashboard') && businessGroups.length === 0) {
+    if ((page === 'sdr' || page === 'dashboard') && businessGroups.length === 0) {
       fetchAtlasShootData(businesses)
     }
     if (page === 'team' || modal === 'team') {
@@ -4689,7 +5387,7 @@ export default function App() {
 
     setBusinesses(prev => prev.map(b => (b.id === business.id || b.businessName === business.businessName) ? { ...b, status: newStatus } : b))
 
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
     if (scriptUrl) {
       try {
         await fetch(scriptUrl, {
@@ -4699,9 +5397,11 @@ export default function App() {
             action: 'update_business_status',
             businessName: business.businessName,
             sdrName: business.sdrName,
-            status: newStatus
+            status: newStatus,
+            actor: { name: user.name, email: user.email, role: user.role }
           })
         })
+        fetchSheet()
       } catch (err) {
         console.error("Failed to update status in spreadsheet:", err)
       }
@@ -4728,7 +5428,7 @@ export default function App() {
         return b
       }))
 
-      const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+      const scriptUrl = SCRIPT_URL
       if (scriptUrl) {
         for (const b of candidates) {
           try {
@@ -4780,28 +5480,46 @@ export default function App() {
     }
     setModal(null)
 
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
     if (scriptUrl) {
       try {
-        await fetch(scriptUrl, {
+        const res = await fetch(scriptUrl, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({ action: 'save_business', data: form })
+          body: JSON.stringify({
+            action: 'save_business',
+            data: form,
+            actor: { name: user.name, email: user.email, role: user.role }
+          })
         })
+        const resData = await res.json()
+        if (resData && resData.agreementLink) {
+          setBusinesses(prev => prev.map(item => item.businessName === form.businessName ? { ...item, agreementLink: resData.agreementLink } : item))
+        }
         fetchSheet()
+        if (resData && resData.autoGeneratedAgreement) {
+          alert(lang === 'id'
+            ? 'Bisnis berhasil disimpan & Dokumen Agreement otomatis dibuat & diarsipkan ke Google Drive!'
+            : 'Business saved & Agreement document auto-generated and archived to Google Drive!')
+        } else {
+          alert(t.saveSuccess)
+        }
       } catch (err) {
         console.error(err)
+        alert(t.saveSuccess)
       }
+    } else {
+      alert(t.saveSuccess)
     }
-    alert(t.saveSuccess)
   }
 
   const handleDelete = async (b: Business) => {
+    if (!user) return
     if (!window.confirm(t.deleteConfirm(b.businessName))) return
 
     setBusinesses(prev => prev.filter(item => item.id !== b.id))
 
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
     if (scriptUrl) {
       try {
         await fetch(scriptUrl, {
@@ -4809,9 +5527,11 @@ export default function App() {
           headers: { 'Content-Type': 'text/plain;charset=utf-8' },
           body: JSON.stringify({
             action: 'delete_business',
-            data: { businessName: b.businessName, sdrName: b.sdrName, ktpPhotoUrl: b.ktpPhotoUrl }
+            data: { businessName: b.businessName, sdrName: b.sdrName, ktpPhotoUrl: b.ktpPhotoUrl },
+            actor: { name: user.name, email: user.email, role: user.role }
           })
         })
+        fetchSheet()
       } catch (err) {
         console.error("Delete error:", err)
       }
@@ -4819,51 +5539,41 @@ export default function App() {
     alert(t.deleteSuccess)
   }
 
-  const handleApproveRequest = async (req: EditRequest) => {
+  const handleGenerateAgreementDirect = async (b: Business) => {
     if (!user) return
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
-    if (scriptUrl) {
-      try {
-        const res = await fetch(scriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'approve_edit_request',
-            requestId: req.requestId,
-            reviewedBy: user.name
-          })
-        })
-        const data = await res.json()
-        alert(data.message || (lang === 'id' ? 'Permintaan berhasil disetujui.' : 'Request approved successfully.'))
-        fetchSheet()
-      } catch (e) {
-        console.error(e)
-      }
+    const scriptUrl = SCRIPT_URL
+    if (!scriptUrl) {
+      alert(lang === 'id' ? 'URL Google Apps Script tidak diset' : 'Google Apps Script URL is not configured')
+      return
     }
-  }
 
-  const handleRejectRequest = async (req: EditRequest) => {
-    if (!user) return
-    const reason = prompt(t.rejectReasonPrompt) || 'Rejected'
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
-    if (scriptUrl) {
-      try {
-        const res = await fetch(scriptUrl, {
-          method: 'POST',
-          headers: { 'Content-Type': 'text/plain;charset=utf-8' },
-          body: JSON.stringify({
-            action: 'reject_edit_request',
-            requestId: req.requestId,
-            reviewedBy: user.name,
-            reason
-          })
+    try {
+      const res = await fetch(scriptUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'text/plain;charset=utf-8' },
+        body: JSON.stringify({
+          action: 'generate_agreement',
+          data: b,
+          businessName: b.businessName,
+          sdrName: b.sdrName,
+          actor: { name: user.name, email: user.email, role: user.role }
         })
-        const data = await res.json()
-        alert(data.message || (lang === 'id' ? 'Permintaan ditolak.' : 'Request rejected.'))
+      })
+      const resData = await res.json()
+      if (resData && resData.agreementLink) {
+        setBusinesses(prev => prev.map(item => (item.id === b.id || item.businessName === b.businessName) ? { ...item, agreementLink: resData.agreementLink } : item))
+        if (selected && (selected.id === b.id || selected.businessName === b.businessName)) {
+          setSelected(prev => prev ? { ...prev, agreementLink: resData.agreementLink } : null)
+        }
+        alert(lang === 'id' ? 'Dokumen Agreement berhasil digenerate dan diarsipkan ke Google Drive!' : 'Agreement document generated and archived to Google Drive!')
+        window.open(resData.agreementLink, '_blank')
         fetchSheet()
-      } catch (e) {
-        console.error(e)
+      } else {
+        alert(resData.error || (lang === 'id' ? 'Gagal membuat dokumen agreement' : 'Failed to generate agreement document'))
       }
+    } catch (e) {
+      console.error("Agreement generation error:", e)
+      alert(lang === 'id' ? 'Terjadi kesalahan saat membuat agreement' : 'Error generating agreement document')
     }
   }
 
@@ -4873,7 +5583,7 @@ export default function App() {
       const curMap = JSON.parse(localStorage.getItem('crm_user_roles_map') || '{}')
       curMap[tEmail] = newRole
       localStorage.setItem('crm_user_roles_map', JSON.stringify(curMap))
-    } catch (e) {}
+    } catch (e) { }
 
     setUsersList(prev => prev.map(u => u.email.trim().toLowerCase() === tEmail ? { ...u, role: newRole } : u))
     if (user && user.email.trim().toLowerCase() === tEmail) {
@@ -4882,7 +5592,7 @@ export default function App() {
       localStorage.setItem('crm_user', JSON.stringify(nextUser))
     }
 
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
     if (scriptUrl) {
       try {
         const res = await fetch(scriptUrl, {
@@ -4914,7 +5624,7 @@ export default function App() {
       const curMap = JSON.parse(localStorage.getItem('crm_dedicated_sdrs_map') || '{}')
       curMap[tEmail] = dedicatedSdrs
       localStorage.setItem('crm_dedicated_sdrs_map', JSON.stringify(curMap))
-    } catch (e) {}
+    } catch (e) { }
 
     setUsersList(prev => prev.map(u => u.email.trim().toLowerCase() === tEmail ? { ...u, dedicatedSdrs } : u))
     if (user && user.email.trim().toLowerCase() === tEmail) {
@@ -4923,7 +5633,7 @@ export default function App() {
       localStorage.setItem('crm_user', JSON.stringify(nextUser))
     }
 
-    const scriptUrl = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL
+    const scriptUrl = SCRIPT_URL
     if (scriptUrl) {
       try {
         const res = await fetch(scriptUrl, {
@@ -4955,14 +5665,11 @@ export default function App() {
 
   const isManagement = user.role === 'Sales Manager' || user.role === 'Coordinator' || user.role === 'Field Ops'
   const isSalesManager = user.role === 'Sales Manager'
-  const pendingRequestsCount = editRequests.filter(r => r.status === 'pending').length
 
-  const NAV = [
-    { id: 'dashboard' as Page, label: t.navDashboard, icon: <IconDashboard className="w-4 h-4" /> },
-    { id: 'businesses' as Page, label: t.navBusinesses, icon: <IconBuilding className="w-4 h-4" /> },
+  const NAV: { id: Page; label: string; icon: React.ReactNode; badge?: number }[] = [
+    { id: 'dashboard', label: t.navDashboard, icon: <IconDashboard className="w-4 h-4" /> },
+    { id: 'businesses', label: t.navBusinesses, icon: <IconBuilding className="w-4 h-4" /> },
     ...(isManagement ? [{ id: 'sdr' as Page, label: t.navSdr, icon: <IconUsers className="w-4 h-4" /> }] : []),
-    { id: 'shoot-report' as Page, label: t.navShootReport, icon: <IconShootReport className="w-4 h-4" /> },
-    ...(isManagement ? [{ id: 'approvals' as Page, label: t.navApprovals, icon: <IconApprovals className="w-4 h-4" />, badge: pendingRequestsCount }] : []),
     ...(isSalesManager ? [{ id: 'team' as Page, label: t.navTeamManage, icon: <IconShieldCheck className="w-4 h-4" /> }] : []),
   ]
 
@@ -5109,6 +5816,7 @@ export default function App() {
               onQuickToggleStatus={handleQuickToggleStatus}
               onSyncShootStatus={handleSyncStatusFromShootReport}
               isSyncingShootStatus={isSyncingShootStatus}
+              onGenerateAgreement={handleGenerateAgreementDirect}
             />
           )}
           {page === 'sdr' && <SDRDirectory businesses={businesses} user={user} rawShootLogs={rawShootLogs} lang={lang} />}
@@ -5122,15 +5830,6 @@ export default function App() {
               onRefreshShootData={() => fetchAtlasShootData(businesses)}
             />
           )}
-          {page === 'approvals' && isManagement && (
-            <ApprovalRequests
-              requests={editRequests}
-              user={user}
-              lang={lang}
-              onApprove={handleApproveRequest}
-              onReject={handleRejectRequest}
-            />
-          )}
           {page === 'team' && isSalesManager && (
             <TeamManagementView
               currentUser={user}
@@ -5138,6 +5837,15 @@ export default function App() {
               lang={lang}
               onUpdateUserRole={handleUpdateUserRole}
               onUpdateDedicatedSdrs={handleUpdateDedicatedSdrs}
+            />
+          )}
+          {page === 'activity' && (
+            <ActivityLogsView
+              logs={activityLogs}
+              user={user}
+              lang={lang}
+              onRefresh={fetchSheet}
+              isSyncing={isSyncing}
             />
           )}
         </div>
@@ -5150,13 +5858,13 @@ export default function App() {
             modal === 'edit' && selected
               ? selected
               : {
-                  ...BLANK_FORM,
-                  sdrName: user.role === 'SDR'
-                    ? (SDR_LIST.find(s => isSdrOwner(user, s)) || user.name || SDR_LIST[0])
-                    : (user.role === 'Field Ops' && user.dedicatedSdrs && user.dedicatedSdrs.length > 0
-                        ? user.dedicatedSdrs[0]
-                        : BLANK_FORM.sdrName)
-                }
+                ...BLANK_FORM,
+                sdrName: user.role === 'SDR'
+                  ? (SDR_LIST.find(s => isSdrOwner(user, s)) || user.name || SDR_LIST[0])
+                  : (user.role === 'Field Ops' && user.dedicatedSdrs && user.dedicatedSdrs.length > 0
+                    ? user.dedicatedSdrs[0]
+                    : BLANK_FORM.sdrName)
+              }
           }
           existingBusinesses={businesses}
           user={user}
@@ -5167,7 +5875,12 @@ export default function App() {
       )}
 
       {modal === 'view' && selected && (
-        <DetailModal b={selected} lang={lang} onClose={() => setModal(null)} />
+        <DetailModal
+          b={selected}
+          lang={lang}
+          onGenerateAgreement={handleGenerateAgreementDirect}
+          onClose={() => setModal(null)}
+        />
       )}
 
       {modal === 'profile' && (

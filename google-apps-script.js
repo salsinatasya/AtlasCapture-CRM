@@ -3,9 +3,11 @@
 // ============================================================================
 
 var BUSINESS_SPREADSHEET_ID = '1_DQZYyDkzm6hjMsgX5ItEFTCyE3l1phKILN2bh7BvFc'; // Spreadsheet Bisnis
-var USER_SPREADSHEET_ID = '1YRSrVZFm3gxTU7ZzCjPWYbMzgHo0EufvMQ9ZQ0XRPM4';     // Spreadsheet Users & EditRequests
+var USER_SPREADSHEET_ID = '1YRSrVZFm3gxTU7ZzCjPWYbMzgHo0EufvMQ9ZQ0XRPM4';     // Spreadsheet Users & ActivityLogs & LoginHistory
 var KTP_FOLDER_ID = '1Nfgfh5duU-YvwoFFUbxOj-F4fREbNVeT';                       // Google Drive Folder untuk Foto KTP
 var PROFILE_FOLDER_ID = '1E7yPKqTcSKdvRQ2csTX0gKoe0rVnrQiy';                   // Google Drive Folder untuk Foto Profil
+var AGREEMENT_FOLDER_ID = '';                                                  // Google Drive Folder untuk Arsip Agreement (kosong = auto-create folder "AtlasCapture - Agreement Archive")
+var AGREEMENT_TEMPLATE_DOC_ID = '';                                            // Google Docs Template ID untuk Agreement (isi saat template dikirim oleh user)
 
 function getBusinessSpreadsheet() {
   if (BUSINESS_SPREADSHEET_ID) {
@@ -21,24 +23,267 @@ function getUserSpreadsheet() {
   return getBusinessSpreadsheet();
 }
 
-function getOrCreateEditRequestsSheet(ss) {
-  var sheet = ss.getSheetByName('EditRequests');
+// ----------------------------------------------------------------------------
+// Backend Login History Tracking (Stays exclusively in backend Google Sheet)
+// ----------------------------------------------------------------------------
+function getOrCreateLoginHistorySheet(ss) {
+  var sheet = ss.getSheetByName('LoginHistory');
   if (!sheet) {
-    sheet = ss.insertSheet('EditRequests');
+    sheet = ss.insertSheet('LoginHistory');
     sheet.appendRow([
-      'RequestId',
       'Timestamp',
-      'RequesterName',
-      'RequesterRole',
-      'BusinessName',
-      'SdrName',
+      'Email',
+      'Name',
+      'Role',
+      'Method',
       'Status',
-      'OriginalDataJson',
-      'UpdatedDataJson',
-      'ReviewerNote'
+      'UserAgent',
+      'Details'
     ]);
+    try {
+      sheet.getRange(1, 1, 1, 8).setFontWeight('bold').setBackground('#f1f5f9');
+      sheet.setFrozenRows(1);
+    } catch (e) {}
   }
   return sheet;
+}
+
+function recordLoginHistory(email, name, role, method, status, details, userAgent) {
+  try {
+    var userSs = getUserSpreadsheet();
+    var sheet = getOrCreateLoginHistorySheet(userSs);
+    var timestamp = new Date().toISOString();
+    var detailsStr = (typeof details === 'object') ? JSON.stringify(details) : (details ? details.toString() : '');
+    
+    sheet.appendRow([
+      timestamp,
+      email || '',
+      name || '',
+      role || '',
+      method || 'GOOGLE_SIGN_IN',
+      status || 'SUCCESS',
+      userAgent || '',
+      detailsStr
+    ]);
+  } catch (err) {
+    Logger.log("Error recording login history: " + err.toString());
+  }
+}
+
+// ----------------------------------------------------------------------------
+// Agreement Document Auto-Generation & Drive Archive
+// ----------------------------------------------------------------------------
+function getOrCreateAgreementFolder() {
+  if (AGREEMENT_FOLDER_ID && AGREEMENT_FOLDER_ID.toString().trim() !== '') {
+    try {
+      return DriveApp.getFolderById(AGREEMENT_FOLDER_ID.toString().trim());
+    } catch (err) {
+      Logger.log("Could not find AGREEMENT_FOLDER_ID: " + err.toString());
+    }
+  }
+
+  var folders = DriveApp.getFoldersByName("AtlasCapture - Agreement Archive");
+  if (folders.hasNext()) {
+    return folders.next();
+  }
+  return DriveApp.createFolder("AtlasCapture - Agreement Archive");
+}
+
+function generateAgreementDocument(b) {
+  try {
+    var folder = getOrCreateAgreementFolder();
+    var bizName = (b.businessName || 'Business').toString().trim();
+    var subDate = (b.submissionDate || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd')).toString().trim();
+    var fileName = 'Agreement - ' + bizName + ' - ' + subDate;
+    var createdFile = null;
+
+    var cleanNik = (b.ownerKtp || '').toString().trim().replace(/^'/, '');
+    var cleanAcc = (b.accountNumber || '').toString().trim().replace(/^'/, '');
+    var normPhone = normalizePhone(b.phone);
+    var normHw = normalizeHardware(b.hardware);
+
+    if (AGREEMENT_TEMPLATE_DOC_ID && AGREEMENT_TEMPLATE_DOC_ID.toString().trim() !== '') {
+      // 1. Template-driven generation (using Google Doc template provided by user)
+      var template = DriveApp.getFileById(AGREEMENT_TEMPLATE_DOC_ID.toString().trim());
+      createdFile = template.makeCopy(fileName, folder);
+      var doc = DocumentApp.openById(createdFile.getId());
+      var body = doc.getBody();
+
+      var replacements = {
+        '{{BUSINESS_NAME}}': bizName,
+        '{{NAMA_BISNIS}}': bizName,
+        '{{BUSINESS}}': bizName,
+        '{{VENUE}}': bizName,
+        '{{OWNER_NAME}}': b.accountHolderName || '',
+        '{{NAMA_PEMILIK}}': b.accountHolderName || '',
+        '{{ACCOUNT_HOLDER}}': b.accountHolderName || '',
+        '{{SDR_NAME}}': b.sdrName || '',
+        '{{SDR}}': b.sdrName || '',
+        '{{DATE}}': subDate,
+        '{{TANGGAL}}': subDate,
+        '{{SUBMISSION_DATE}}': subDate,
+        '{{HOURS}}': (b.hours || '0').toString(),
+        '{{JAM}}': (b.hours || '0').toString(),
+        '{{TARGET_JAM}}': (b.hours || '0').toString(),
+        '{{HARDWARE}}': normHw,
+        '{{QUANTITY}}': (b.quantity || '1').toString(),
+        '{{JUMLAH}}': (b.quantity || '1').toString(),
+        '{{QTY}}': (b.quantity || '1').toString(),
+        '{{RATE}}': (b.rate || '0').toString(),
+        '{{TARIF}}': (b.rate || '0').toString(),
+        '{{BANK_NAME}}': b.bankName || '',
+        '{{BANK}}': b.bankName || '',
+        '{{ACCOUNT_NUMBER}}': cleanAcc,
+        '{{NO_REK}}': cleanAcc,
+        '{{REKENING}}': cleanAcc,
+        '{{ACCOUNT_TYPE}}': b.accountType || 'PERSON',
+        '{{TIPE_REKENING}}': b.accountType || 'PERSON',
+        '{{CITY}}': b.city || '',
+        '{{KOTA}}': b.city || '',
+        '{{FULL_ADDRESS}}': b.fullAddress || '',
+        '{{ADDRESS}}': b.fullAddress || '',
+        '{{ALAMAT}}': b.fullAddress || '',
+        '{{POSTAL_CODE}}': b.postalCode || '',
+        '{{KODE_POS}}': b.postalCode || '',
+        '{{EMAIL}}': b.email || '',
+        '{{PHONE}}': normPhone,
+        '{{TELEPON}}': normPhone,
+        '{{NO_HP}}': normPhone,
+        '{{NIK}}': cleanNik,
+        '{{KTP}}': cleanNik,
+        '{{NO_KTP}}': cleanNik,
+        '{{STATUS}}': b.status || 'Running'
+      };
+
+      for (var key in replacements) {
+        body.replaceText(key, replacements[key] || '');
+        var singleBrace = key.replace('{{', '{').replace('}}', '}');
+        body.replaceText(singleBrace, replacements[key] || '');
+      }
+
+      try {
+        var header = doc.getHeader();
+        if (header) {
+          for (var hk in replacements) {
+            header.replaceText(hk, replacements[hk] || '');
+          }
+        }
+        var footer = doc.getFooter();
+        if (footer) {
+          for (var fk in replacements) {
+            footer.replaceText(fk, replacements[fk] || '');
+          }
+        }
+      } catch (hfErr) {}
+
+      doc.saveAndClose();
+    } else {
+      // 2. Structured fallback agreement document
+      var doc = DocumentApp.create(fileName);
+      var body = doc.getBody();
+
+      var title = body.appendParagraph('SURAT PERJANJIAN KERJASAMA (AGREEMENT)');
+      title.setHeading(DocumentApp.ParagraphHeading.HEADING_1);
+      title.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+      var sub = body.appendParagraph('AtlasCapture Operations — Capture Partnership Agreement\n');
+      sub.setAlignment(DocumentApp.HorizontalAlignment.CENTER);
+
+      body.appendParagraph('Pada hari ini, ' + subDate + ', disepakati perjanjian kemitraan operasional visual capture antara pihak AtlasCapture dan entitas bisnis mitra dengan rincian data sebagai berikut:\n');
+
+      var tableData = [
+        ['Nama Bisnis (Venue)', bizName],
+        ['SDR Penanggung Jawab', b.sdrName || '-'],
+        ['Tanggal Pengajuan', subDate],
+        ['Alamat Lengkap', (b.fullAddress || '') + (b.city ? ', ' + b.city : '') + (b.postalCode ? ' ' + b.postalCode : '')],
+        ['Nomor Telepon / WhatsApp', normPhone || '-'],
+        ['Email', b.email || '-'],
+        ['Nama Pemilik / Rekening', b.accountHolderName || '-'],
+        ['Nomor KTP (NIK)', cleanNik || '-'],
+        ['Bank & Rekening', (b.bankName || '-') + ' — ' + cleanAcc + ' (' + (b.accountType || 'PERSON') + ')'],
+        ['Tipe Hardware / Kit', normHw],
+        ['Target Durasi (Hours)', (b.hours || '0') + ' Jam'],
+        ['Kuantitas & Rate', (b.quantity || '1') + ' unit @ $' + (b.rate || '0') + '/hr'],
+        ['Status Operasional', b.status || 'Running']
+      ];
+
+      var table = body.appendTable(tableData);
+      table.setBorderWidth(1);
+      table.setBorderColor('#CBD5E1');
+
+      body.appendParagraph('\nKetentuan Kemitraan:');
+      body.appendParagraph('1. Pihak Bisnis mengizinkan proses perekaman/visual capture sesuai jam dan kuota durasi yang disepakati.');
+      body.appendParagraph('2. Seluruh data rekaman diproses secara aman sesuai standar perlindungan privasi AtlasCapture.');
+      body.appendParagraph('3. Pembayaran kompensasi akan ditransfer ke rekening di atas setelah verifikasi kelayakan shoot tuntas diselesaikan.\n');
+
+      body.appendParagraph('\nPIHAK PERTAMA (AtlasCapture)                PIHAK KEDUA (' + bizName + ')\n\n\n\n_________________________                  _________________________');
+
+      doc.saveAndClose();
+
+      var docFile = DriveApp.getFileById(doc.getId());
+      folder.addFile(docFile);
+      DriveApp.getRootFolder().removeFile(docFile);
+      createdFile = docFile;
+    }
+
+    try {
+      createdFile.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
+    } catch (permErr) {
+      Logger.log("Warning setting file sharing permission: " + permErr.toString());
+    }
+
+    return createdFile.getUrl();
+  } catch (err) {
+    Logger.log("Error generating agreement document: " + err.toString());
+    return '';
+  }
+}
+
+function getOrCreateActivityLogsSheet(ss) {
+  var sheet = ss.getSheetByName('ActivityLogs');
+  if (!sheet) {
+    sheet = ss.insertSheet('ActivityLogs');
+    sheet.appendRow([
+      'LogId',
+      'Timestamp',
+      'ActorName',
+      'ActorEmail',
+      'ActorRole',
+      'ActionType',
+      'BusinessName',
+      'SdrName',
+      'Details'
+    ]);
+  }
+
+  return sheet;
+}
+
+function recordActivityLog(actor, actionType, businessName, sdrName, details) {
+  try {
+    var userSs = getUserSpreadsheet();
+    var logSheet = getOrCreateActivityLogsSheet(userSs);
+    var logId = 'LOG-' + Date.now();
+    var timestamp = new Date().toISOString();
+    var actorName = (actor && actor.name) ? actor.name : 'System / Unknown';
+    var actorEmail = (actor && actor.email) ? actor.email : '';
+    var actorRole = (actor && actor.role) ? actor.role : '';
+    var detailsStr = (typeof details === 'object') ? JSON.stringify(details) : (details ? details.toString() : '');
+
+    logSheet.appendRow([
+      logId,
+      timestamp,
+      actorName,
+      actorEmail,
+      actorRole,
+      actionType,
+      businessName || '',
+      sdrName || '',
+      detailsStr
+    ]);
+  } catch (err) {
+    Logger.log("Error recording activity log: " + err.toString());
+  }
 }
 
 function normalizeHardware(hw) {
@@ -84,30 +329,30 @@ function doGet(e) {
     var ss = getBusinessSpreadsheet();
     if (!ss) throw new Error("Spreadsheet Business tidak ditemukan. Harap periksa BUSINESS_SPREADSHEET_ID.");
     var sheets = ss.getSheets();
-    
+
     var allRows = [];
     var validSdrNames = [];
-    var excludeSheets = ['All Businesses', 'Wise Banks', 'Reynald', 'EditRequests', 'Users'];
-    
+    var excludeSheets = ['All Businesses', 'Wise Banks', 'Reynald', 'EditRequests', 'Users', 'ActivityLogs'];
+
     for (var k = 0; k < sheets.length; k++) {
       var sheet = sheets[k];
       var sheetName = sheet.getName();
-      
+
       if (excludeSheets.indexOf(sheetName) !== -1) {
         continue;
       }
-      
+
       validSdrNames.push(sheetName);
-      
-      var data = sheet.getDataRange().getDisplayValues(); 
+
+      var data = sheet.getDataRange().getDisplayValues();
       var rawValues = sheet.getDataRange().getValues();
-      if (data.length <= 1) continue; 
-      
+      if (data.length <= 1) continue;
+
       var headers = data[0];
       for (var i = 1; i < data.length; i++) {
         var rowData = data[i];
         var rawRowData = rawValues[i];
-        
+
         var isEmpty = true;
         for (var c = 0; c < rowData.length; c++) {
           if (rowData[c] && rowData[c].toString().trim() !== '') {
@@ -147,39 +392,13 @@ function doGet(e) {
         if (obj['Status']) {
           obj['Status'] = normalizeStatus(obj['Status']);
         }
-        
+
         allRows.push(obj);
       }
     }
 
-    // Get Pending Edit Requests
+    // EditRequests removed as approval requests are disabled
     var editRequests = [];
-    try {
-      var userSs = getUserSpreadsheet();
-      var editSheet = userSs.getSheetByName('EditRequests');
-      if (editSheet) {
-        var editData = editSheet.getDataRange().getValues();
-        for (var er = 1; er < editData.length; er++) {
-          var row = editData[er];
-          if (row[6] === 'pending') {
-            editRequests.push({
-              requestId: row[0],
-              timestamp: row[1],
-              requesterName: row[2],
-              requesterRole: row[3],
-              businessName: row[4],
-              sdrName: row[5],
-              status: row[6],
-              originalData: row[7] ? JSON.parse(row[7]) : null,
-              updatedData: row[8] ? JSON.parse(row[8]) : null,
-              reviewerNote: row[9] || ''
-            });
-          }
-        }
-      }
-    } catch (eReqErr) {
-      Logger.log("Could not load EditRequests: " + eReqErr.toString());
-    }
 
     // Get Users list (without password)
     var usersList = [];
@@ -195,9 +414,9 @@ function doGet(e) {
             try {
               var rDed = uRow[5];
               if (rDed) {
-                parsedDed = typeof rDed === 'string' && rDed.startsWith('[') ? JSON.parse(rDed) : rDed.toString().split(',').map(function(s){return s.trim();});
+                parsedDed = typeof rDed === 'string' && rDed.startsWith('[') ? JSON.parse(rDed) : rDed.toString().split(',').map(function (s) { return s.trim(); });
               }
-            } catch(e) {}
+            } catch (e) { }
             usersList.push({
               name: uRow[0] || '',
               email: uRow[1] || '',
@@ -211,14 +430,44 @@ function doGet(e) {
     } catch (uErr) {
       Logger.log("Could not load Users: " + uErr.toString());
     }
-    
+
+    // Get Activity Logs (last 300 entries, newest first)
+    var activityLogs = [];
+    try {
+      var logSs = getUserSpreadsheet();
+      var logSheet = logSs.getSheetByName('ActivityLogs');
+      if (logSheet) {
+        var logData = logSheet.getDataRange().getValues();
+        var startRow = Math.max(1, logData.length - 300);
+        for (var lIdx = logData.length - 1; lIdx >= startRow; lIdx--) {
+          var lRow = logData[lIdx];
+          if (lRow[0] && lRow[0] !== 'LogId') {
+            activityLogs.push({
+              logId: lRow[0] || '',
+              timestamp: lRow[1] ? (lRow[1] instanceof Date ? lRow[1].toISOString() : lRow[1].toString()) : '',
+              actorName: lRow[2] || 'System',
+              actorEmail: lRow[3] || '',
+              actorRole: lRow[4] || '',
+              actionType: lRow[5] || 'ACTIVITY',
+              businessName: lRow[6] || '',
+              sdrName: lRow[7] || '',
+              details: lRow[8] || ''
+            });
+          }
+        }
+      }
+    } catch (lErr) {
+      Logger.log("Could not load ActivityLogs: " + lErr.toString());
+    }
+
     var result = {
       businesses: allRows,
       sdrList: validSdrNames,
       editRequests: editRequests,
-      users: usersList
+      users: usersList,
+      activityLogs: activityLogs
     };
-    
+
     return ContentService.createTextOutput(JSON.stringify(result))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -231,7 +480,7 @@ function doPost(e) {
   try {
     var ss = getBusinessSpreadsheet();
     var payload = JSON.parse(e.postData.contents);
-    
+
     // --------------------------------------------------------------------------
     // 1. SIGNUP
     // --------------------------------------------------------------------------
@@ -249,7 +498,7 @@ function doPost(e) {
       var name = payload.name;
       var avatarUrl = payload.avatarUrl || '';
       var dedicatedSdrs = payload.dedicatedSdrs ? JSON.stringify(payload.dedicatedSdrs) : '[]';
-      
+
       for (var i = 1; i < data.length; i++) {
         if ((data[i][1] || '').toString().trim().toLowerCase() === email) {
           return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Email already exists' }))
@@ -257,39 +506,125 @@ function doPost(e) {
         }
       }
       usersSheet.appendRow([name, email, password, role, avatarUrl, dedicatedSdrs]);
-      return ContentService.createTextOutput(JSON.stringify({ 
-        success: true, 
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
         message: 'Signup successful',
         user: { name: name, email: email, role: role, avatarUrl: avatarUrl, dedicatedSdrs: payload.dedicatedSdrs || [] }
       })).setMimeType(ContentService.MimeType.JSON);
     }
-    
+
     // --------------------------------------------------------------------------
-    // 2. LOGIN
+    // 2. GOOGLE SIGN-IN AUTHENTICATION
+    // --------------------------------------------------------------------------
+    if (payload.action === 'google_login') {
+      var email = (payload.email || '').trim().toLowerCase();
+      var name = (payload.name || '').trim();
+      var avatarUrl = payload.avatarUrl || '';
+      var userAgent = payload.userAgent || '';
+
+      if (!email) {
+        recordLoginHistory(email, name, '', 'GOOGLE_SIGN_IN', 'FAILED', 'Email is missing', userAgent);
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Email wajib diisi' }))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+
+      var userSs = getUserSpreadsheet();
+      var usersSheet = userSs.getSheetByName('Users');
+      if (!usersSheet) {
+        usersSheet = userSs.insertSheet('Users');
+        usersSheet.appendRow(['Name', 'Email', 'Password', 'Role', 'AvatarUrl', 'DedicatedSdrs']);
+      }
+      var data = usersSheet.getDataRange().getValues();
+      var userFound = false;
+      var userObj = null;
+
+      for (var i = 1; i < data.length; i++) {
+        var rowEmail = (data[i][1] || '').toString().trim().toLowerCase();
+        if (rowEmail === email) {
+          userFound = true;
+          var parsedDedicated = [];
+          try {
+            var rawD = data[i][5];
+            if (rawD) {
+              parsedDedicated = typeof rawD === 'string' && rawD.startsWith('[') ? JSON.parse(rawD) : rawD.toString().split(',').map(function (s) { return s.trim(); });
+            }
+          } catch (e) { }
+
+          // Update avatar if not yet set or changed
+          if (avatarUrl && !data[i][4]) {
+            usersSheet.getRange(i + 1, 5).setValue(avatarUrl);
+          }
+
+          userObj = {
+            name: data[i][0] || name,
+            email: rowEmail,
+            role: data[i][3] || 'SDR',
+            avatarUrl: data[i][4] || avatarUrl || '',
+            dedicatedSdrs: parsedDedicated
+          };
+          break;
+        }
+      }
+
+      if (!userFound) {
+        // Auto-register new Google user into Users sheet
+        var assignedRole = (email.indexOf('admin') !== -1 || email === 'salsinatasya@gmail.com') ? 'Sales Manager' : 'SDR';
+        var newDedicated = [];
+        usersSheet.appendRow([name, email, 'GOOGLE_AUTH', assignedRole, avatarUrl, JSON.stringify(newDedicated)]);
+
+        userObj = {
+          name: name,
+          email: email,
+          role: assignedRole,
+          avatarUrl: avatarUrl,
+          dedicatedSdrs: newDedicated
+        };
+      }
+
+      // Record login strictly in backend LoginHistory sheet (never sent to web)
+      recordLoginHistory(userObj.email, userObj.name, userObj.role, 'GOOGLE_SIGN_IN', 'SUCCESS', 'Google Sign-In successful', userAgent);
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: 'Google Sign-In successful',
+        name: userObj.name,
+        email: userObj.email,
+        role: userObj.role,
+        avatarUrl: userObj.avatarUrl,
+        dedicatedSdrs: userObj.dedicatedSdrs,
+        user: userObj
+      })).setMimeType(ContentService.MimeType.JSON);
+    }
+
+    // --------------------------------------------------------------------------
+    // 2B. STANDARD LOGIN (Email & Password)
     // --------------------------------------------------------------------------
     if (payload.action === 'login') {
       var email = (payload.email || '').trim().toLowerCase();
       var password = payload.password;
-      
+      var userAgent = payload.userAgent || '';
+
       if (email === 'admin@crm.com' && password === 'admin123') {
-        return ContentService.createTextOutput(JSON.stringify({ 
-          success: true, 
-          role: 'Sales Manager', 
-          name: 'Admin', 
+        recordLoginHistory(email, 'Admin', 'Sales Manager', 'EMAIL_PASSWORD', 'SUCCESS', 'Admin master login', userAgent);
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          role: 'Sales Manager',
+          name: 'Admin',
           email: email,
           avatarUrl: '',
           dedicatedSdrs: []
         })).setMimeType(ContentService.MimeType.JSON);
       }
-      
+
       var userSs = getUserSpreadsheet();
       var usersSheet = userSs.getSheetByName('Users');
       if (!usersSheet) {
+        recordLoginHistory(email, '', '', 'EMAIL_PASSWORD', 'FAILED', 'Sheet Users missing', userAgent);
         return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Sheet "Users" tidak ditemukan.' }))
           .setMimeType(ContentService.MimeType.JSON);
       }
       var data = usersSheet.getDataRange().getValues();
-      
+
       for (var i = 1; i < data.length; i++) {
         var rowEmail = (data[i][1] || '').toString().trim().toLowerCase();
         var rowPass = (data[i][2] || '').toString();
@@ -298,20 +633,28 @@ function doPost(e) {
           try {
             var rawD = data[i][5];
             if (rawD) {
-              parsedDedicated = typeof rawD === 'string' && rawD.startsWith('[') ? JSON.parse(rawD) : rawD.toString().split(',').map(function(s){return s.trim();});
+              parsedDedicated = typeof rawD === 'string' && rawD.startsWith('[') ? JSON.parse(rawD) : rawD.toString().split(',').map(function (s) { return s.trim(); });
             }
-          } catch(e) {}
+          } catch (e) { }
 
-          return ContentService.createTextOutput(JSON.stringify({ 
-            success: true, 
-            name: data[i][0], 
-            email: data[i][1], 
-            role: data[i][3] || 'SDR',
+          var userRole = data[i][3] || 'SDR';
+          var userName = data[i][0] || '';
+
+          // Record login in backend sheet
+          recordLoginHistory(email, userName, userRole, 'EMAIL_PASSWORD', 'SUCCESS', 'Standard login', userAgent);
+
+          return ContentService.createTextOutput(JSON.stringify({
+            success: true,
+            name: userName,
+            email: data[i][1],
+            role: userRole,
             avatarUrl: data[i][4] || '',
             dedicatedSdrs: parsedDedicated
           })).setMimeType(ContentService.MimeType.JSON);
         }
       }
+
+      recordLoginHistory(email, '', '', 'EMAIL_PASSWORD', 'FAILED', 'Invalid email or password', userAgent);
       return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Invalid email or password' }))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -383,8 +726,8 @@ function doPost(e) {
           if (typeof newDedicated !== 'undefined') {
             usersSheet.getRange(i + 1, 6).setValue(JSON.stringify(newDedicated));
           }
-          return ContentService.createTextOutput(JSON.stringify({ 
-            success: true, 
+          return ContentService.createTextOutput(JSON.stringify({
+            success: true,
             message: 'Profil berhasil diperbarui!',
             name: newName || data[i][0],
             avatarUrl: typeof newAvatar !== 'undefined' ? newAvatar : (data[i][4] || ''),
@@ -413,9 +756,9 @@ function doPost(e) {
         var rowEmail = (data[i][1] || '').toString().trim().toLowerCase();
         if (rowEmail === targetEmail) {
           usersSheet.getRange(i + 1, 4).setValue(newRole);
-          return ContentService.createTextOutput(JSON.stringify({ 
-            success: true, 
-            message: 'Role user berhasil diubah menjadi ' + newRole 
+          return ContentService.createTextOutput(JSON.stringify({
+            success: true,
+            message: 'Role user berhasil diubah menjadi ' + newRole
           })).setMimeType(ContentService.MimeType.JSON);
         }
       }
@@ -440,9 +783,9 @@ function doPost(e) {
         var rowEmail = (data[i][1] || '').toString().trim().toLowerCase();
         if (rowEmail === targetEmail) {
           usersSheet.getRange(i + 1, 6).setValue(JSON.stringify(dedicatedSdrs));
-          return ContentService.createTextOutput(JSON.stringify({ 
-            success: true, 
-            message: 'Dedicated SDRs user berhasil diperbarui!' 
+          return ContentService.createTextOutput(JSON.stringify({
+            success: true,
+            message: 'Dedicated SDRs user berhasil diperbarui!'
           })).setMimeType(ContentService.MimeType.JSON);
         }
       }
@@ -451,125 +794,40 @@ function doPost(e) {
     }
 
     // --------------------------------------------------------------------------
-    // 5. SUBMIT EDIT REQUEST (For SDR edits - sets status to pending in Sheet)
+    // 5. GENERATE AGREEMENT (Create & Archive to Google Drive)
     // --------------------------------------------------------------------------
-    if (payload.action === 'submit_edit_request') {
-      var userSs = getUserSpreadsheet();
-      var editSheet = getOrCreateEditRequestsSheet(userSs);
-      
-      var reqId = 'REQ-' + Date.now();
-      var timestamp = new Date().toISOString();
-      var requesterName = payload.requesterName || '';
-      var requesterRole = payload.requesterRole || 'SDR';
-      var businessName = payload.businessName || '';
-      var sdrName = payload.sdrName || '';
-      var originalData = payload.originalData || {};
-      var updatedData = payload.updatedData || {};
-      
-      // Mark updated data status as pending
-      updatedData.status = 'pending';
-      
-      var originalDataJson = JSON.stringify(originalData);
-      var updatedDataJson = JSON.stringify(updatedData);
-      
-      editSheet.appendRow([
-        reqId,
-        timestamp,
-        requesterName,
-        requesterRole,
-        businessName,
-        sdrName,
-        'pending',
-        originalDataJson,
-        updatedDataJson,
-        ''
-      ]);
+    if (payload.action === 'generate_agreement') {
+      var bData = payload.data || {};
+      var bName = bData.businessName || payload.businessName || '';
+      var sName = bData.sdrName || payload.sdrName || '';
+      var targetSheet = findSdrSheet(ss, sName);
 
-      // Also update business status in business spreadsheet to pending
-      try {
-        updateBusinessStatusInSheet(ss, sdrName, businessName, 'pending');
-      } catch (stErr) {
-        Logger.log("Could not update status to pending in sheet: " + stErr.toString());
-      }
-
-      return ContentService.createTextOutput(JSON.stringify({ 
-        success: true, 
-        message: 'Permintaan edit berhasil dikirim. Status bisnis diubah menjadi pending menunggu persetujuan.',
-        requestId: reqId
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // --------------------------------------------------------------------------
-    // 6. APPROVE EDIT REQUEST (By Field Ops / Sales Manager / Coordinator)
-    // --------------------------------------------------------------------------
-    if (payload.action === 'approve_edit_request') {
-      var reqId = payload.requestId;
-      var reviewedBy = payload.reviewedBy || '';
-      var userSs = getUserSpreadsheet();
-      var editSheet = getOrCreateEditRequestsSheet(userSs);
-      var editData = editSheet.getDataRange().getValues();
-      var foundRow = -1;
-      var updatedData = null;
-
-      for (var r = 1; r < editData.length; r++) {
-        if (editData[r][0] === reqId) {
-          foundRow = r + 1;
-          updatedData = JSON.parse(editData[r][8]);
-          break;
-        }
-      }
-
-      if (foundRow === -1 || !updatedData) {
-        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Request ID tidak ditemukan' }))
+      var agreementUrl = generateAgreementDocument(bData);
+      if (!agreementUrl) {
+        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Gagal membuat dokumen agreement di Google Drive.' }))
           .setMimeType(ContentService.MimeType.JSON);
       }
 
-      // Ensure status is approved upon approval
-      updatedData.status = 'approved';
-
-      // Apply the update to Business Spreadsheet
-      saveBusinessToSheet(ss, updatedData);
-
-      // Mark request as approved
-      editSheet.getRange(foundRow, 7).setValue('approved');
-      editSheet.getRange(foundRow, 10).setValue('Approved by ' + reviewedBy);
-
-      return ContentService.createTextOutput(JSON.stringify({ 
-        success: true, 
-        message: 'Perubahan berhasil disetujui (Status: approved) dan data di Spreadsheet telah diperbarui!' 
-      })).setMimeType(ContentService.MimeType.JSON);
-    }
-
-    // --------------------------------------------------------------------------
-    // 7. REJECT EDIT REQUEST (By Field Ops / Sales Manager / Coordinator)
-    // --------------------------------------------------------------------------
-    if (payload.action === 'reject_edit_request') {
-      var reqId = payload.requestId;
-      var reviewedBy = payload.reviewedBy || '';
-      var reason = payload.reason || 'Ditolak oleh ' + reviewedBy;
-      var userSs = getUserSpreadsheet();
-      var editSheet = getOrCreateEditRequestsSheet(userSs);
-      var editData = editSheet.getDataRange().getValues();
-      var foundRow = -1;
-
-      for (var r = 1; r < editData.length; r++) {
-        if (editData[r][0] === reqId) {
-          foundRow = r + 1;
-          break;
+      // Update Column T (20) in Spreadsheet if row found
+      if (targetSheet) {
+        var sValues = targetSheet.getDataRange().getValues();
+        for (var idx = 1; idx < sValues.length; idx++) {
+          if (sValues[idx][0] && sValues[idx][0].toString().trim().toLowerCase() === bName.trim().toLowerCase()) {
+            targetSheet.getRange(idx + 1, 20).setValue(agreementUrl);
+            recordActivityLog(payload.actor, 'GENERATE_AGREEMENT', bName, targetSheet.getName(), 'Agreement dibuat & diarsipkan ke Drive: ' + agreementUrl);
+            return ContentService.createTextOutput(JSON.stringify({
+              success: true,
+              message: 'Dokumen agreement berhasil digenerate dan diarsipkan ke Google Drive!',
+              agreementLink: agreementUrl
+            })).setMimeType(ContentService.MimeType.JSON);
+          }
         }
       }
 
-      if (foundRow === -1) {
-        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Request ID tidak ditemukan' }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
-
-      editSheet.getRange(foundRow, 7).setValue('rejected');
-      editSheet.getRange(foundRow, 10).setValue(reason);
-
-      return ContentService.createTextOutput(JSON.stringify({ 
-        success: true, 
-        message: 'Perubahan ditolak.' 
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
+        message: 'Dokumen agreement berhasil digenerate!',
+        agreementLink: agreementUrl
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -577,7 +835,7 @@ function doPost(e) {
     // 8. SAVE BUSINESS (Direct save / Edit)
     // --------------------------------------------------------------------------
     if (payload.action === 'save_business') {
-      var res = saveBusinessToSheet(ss, payload.data);
+      var res = saveBusinessToSheet(ss, payload.data, payload.actor);
       return ContentService.createTextOutput(JSON.stringify(res))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -589,11 +847,11 @@ function doPost(e) {
       var bName = payload.businessName;
       var sName = payload.sdrName;
       var newSt = normalizeStatus(payload.status);
-      var res = updateBusinessStatusInSheet(ss, sName, bName, newSt);
+      var res = updateBusinessStatusInSheet(ss, sName, bName, newSt, payload.actor);
       return ContentService.createTextOutput(JSON.stringify(res))
         .setMimeType(ContentService.MimeType.JSON);
     }
-    
+
     // --------------------------------------------------------------------------
     // 9. DELETE BUSINESS (Delete Row + Delete KTP Photo from Drive)
     // --------------------------------------------------------------------------
@@ -607,7 +865,7 @@ function doPost(e) {
       try {
         var ktpUrl = dataInfo.ktpPhotoUrl || '';
         var businessName = dataInfo.businessName || '';
-        
+
         if (ktpUrl) {
           var match = ktpUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || ktpUrl.match(/id=([a-zA-Z0-9_-]+)/);
           if (match && match[1]) {
@@ -620,7 +878,7 @@ function doPost(e) {
             }
           }
         }
-        
+
         if (!deletedKtp && businessName && KTP_FOLDER_ID) {
           try {
             var folder = DriveApp.getFolderById(KTP_FOLDER_ID);
@@ -642,8 +900,10 @@ function doPost(e) {
       if (targetSheet) {
         var sheetDataDel = targetSheet.getDataRange().getValues();
         var delRowIndex = -1;
+        var deletedRowBackup = null;
         for (var idx = 1; idx < sheetDataDel.length; idx++) {
           if (sheetDataDel[idx][0] && sheetDataDel[idx][0].toString().trim().toLowerCase() === (dataInfo.businessName || '').toString().trim().toLowerCase()) {
+            deletedRowBackup = sheetDataDel[idx];
             if (!deletedKtp && (sheetDataDel[idx][16] || sheetDataDel[idx][15])) {
               try {
                 var rowKtpUrl = (sheetDataDel[idx][16] || sheetDataDel[idx][15]).toString();
@@ -652,7 +912,7 @@ function doPost(e) {
                   DriveApp.getFileById(m[1]).setTrashed(true);
                   deletedKtp = true;
                 }
-              } catch (eRowKtp) {}
+              } catch (eRowKtp) { }
             }
             delRowIndex = idx + 1;
             break;
@@ -660,8 +920,24 @@ function doPost(e) {
         }
         if (delRowIndex > -1) {
           targetSheet.deleteRow(delRowIndex);
-          return ContentService.createTextOutput(JSON.stringify({ 
-            success: true, 
+          recordActivityLog(payload.actor, 'DELETE_BUSINESS', dataInfo.businessName, targetSheet.getName(), {
+            deletedBusinessName: dataInfo.businessName,
+            sdrName: targetSheet.getName(),
+            ktpDeleted: deletedKtp,
+            backupData: deletedRowBackup ? {
+              hours: deletedRowBackup[2],
+              hardware: deletedRowBackup[3],
+              rate: deletedRowBackup[5],
+              bank: deletedRowBackup[7],
+              city: deletedRowBackup[10],
+              address: deletedRowBackup[11],
+              email: deletedRowBackup[13],
+              phone: deletedRowBackup[14],
+              status: deletedRowBackup[20]
+            } : null
+          });
+          return ContentService.createTextOutput(JSON.stringify({
+            success: true,
             message: 'Bisnis dan file KTP berhasil dihapus dari Spreadsheet & Google Drive!',
             ktpDeleted: deletedKtp
           })).setMimeType(ContentService.MimeType.JSON);
@@ -670,14 +946,14 @@ function doPost(e) {
       return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Baris tidak ditemukan di sheet ' + (targetSheet ? targetSheet.getName() : targetSheetName) }))
         .setMimeType(ContentService.MimeType.JSON);
     }
-    
+
     // --------------------------------------------------------------------------
     // 10. UPLOAD FILE (KTP vs Profile Picture strictly separated)
     // --------------------------------------------------------------------------
     if (payload.action === 'upload_file' || payload.fileData) {
       var decoded = Utilities.base64Decode(payload.fileData);
       var blob = Utilities.newBlob(decoded, payload.mimeType, payload.fileName);
-      
+
       var isProfile = (payload.folderType === 'profile');
       var targetFolderId = isProfile ? PROFILE_FOLDER_ID : KTP_FOLDER_ID;
       var folder = null;
@@ -691,19 +967,19 @@ function doPost(e) {
       var file = folder ? folder.createFile(blob) : DriveApp.createFile(blob);
       try {
         file.setSharing(DriveApp.Access.ANYONE_WITH_LINK, DriveApp.Permission.VIEW);
-      } catch (shErr) {}
+      } catch (shErr) { }
       var fileId = file.getId();
       var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
-      
-      return ContentService.createTextOutput(JSON.stringify({ 
-        success: true, 
+
+      return ContentService.createTextOutput(JSON.stringify({
+        success: true,
         url: file.getUrl(),
         directUrl: directUrl,
         fileId: fileId,
         folderType: isProfile ? 'profile' : 'ktp'
       })).setMimeType(ContentService.MimeType.JSON);
     }
-    
+
     return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Unknown action: ' + payload.action }))
       .setMimeType(ContentService.MimeType.JSON);
   } catch (err) {
@@ -720,8 +996,8 @@ function findSdrSheet(ss, sdrName) {
   if (!sdrName) return ss.getActiveSheet();
   var target = sdrName.toString().trim().toLowerCase();
   var sheets = ss.getSheets();
-  var exclude = ['All Businesses', 'Wise Banks', 'Reynald', 'EditRequests', 'Users'];
-  
+  var exclude = ['All Businesses', 'Wise Banks', 'Reynald', 'EditRequests', 'Users', 'ActivityLogs'];
+
   // 1. Search among valid SDR sheets (case insensitive & trimmed)
   for (var i = 0; i < sheets.length; i++) {
     var name = sheets[i].getName();
@@ -729,11 +1005,11 @@ function findSdrSheet(ss, sdrName) {
       return sheets[i];
     }
   }
-  
+
   // 2. Direct getSheetByName
   var direct = ss.getSheetByName(sdrName);
   if (direct) return direct;
-  
+
   // 3. Fallback to active sheet
   return ss.getActiveSheet();
 }
@@ -741,13 +1017,15 @@ function findSdrSheet(ss, sdrName) {
 // ----------------------------------------------------------------------------
 // Helper: Update Single Business Status Cell
 // ----------------------------------------------------------------------------
-function updateBusinessStatusInSheet(ss, sdrName, businessName, newStatus) {
+function updateBusinessStatusInSheet(ss, sdrName, businessName, newStatus, actor) {
   var sheet = findSdrSheet(ss, sdrName);
   if (sheet) {
     var data = sheet.getDataRange().getValues();
     for (var i = 1; i < data.length; i++) {
       if (data[i][0] && data[i][0].toString().trim().toLowerCase() === (businessName || '').toString().trim().toLowerCase()) {
+        var oldSt = data[i][20] || 'Running';
         sheet.getRange(i + 1, 21).setValue(newStatus);
+        recordActivityLog(actor, 'UPDATE_STATUS', businessName, sheet.getName(), 'Status diubah: ' + oldSt + ' ➔ ' + newStatus);
         return { success: true, message: 'Status updated to ' + newStatus };
       }
     }
@@ -759,7 +1037,9 @@ function updateBusinessStatusInSheet(ss, sdrName, businessName, newStatus) {
     var sData = allSheets[s].getDataRange().getValues();
     for (var r = 1; r < sData.length; r++) {
       if (sData[r][0] && sData[r][0].toString().trim().toLowerCase() === (businessName || '').toString().trim().toLowerCase()) {
+        var oldSt2 = sData[r][20] || 'Running';
         allSheets[s].getRange(r + 1, 21).setValue(newStatus);
+        recordActivityLog(actor, 'UPDATE_STATUS', businessName, allSheets[s].getName(), 'Status diubah: ' + oldSt2 + ' ➔ ' + newStatus);
         return { success: true, message: 'Status updated to ' + newStatus };
       }
     }
@@ -770,17 +1050,17 @@ function updateBusinessStatusInSheet(ss, sdrName, businessName, newStatus) {
 // ----------------------------------------------------------------------------
 // Helper Function: Save / Update Business in Spreadsheet
 // ----------------------------------------------------------------------------
-function saveBusinessToSheet(ss, b) {
+function saveBusinessToSheet(ss, b, actor) {
   var sheetName = b.sdrName || '';
   var sheet = findSdrSheet(ss, sheetName);
-  
+
   if (!sheet) {
     sheet = ss.getActiveSheet();
   }
 
   var normalizedHw = normalizeHardware(b.hardware);
   var normalizedSt = normalizeStatus(b.status || 'Running');
-  
+
   // Format NIK: store as plain text with leading single quote so Google Sheets preserves all 16 digits without scientific notation
   var cleanNik = (b.ownerKtp || '').toString().trim().replace(/^'/, '');
   var formattedNik = cleanNik ? "'" + cleanNik : '';
@@ -792,7 +1072,21 @@ function saveBusinessToSheet(ss, b) {
   var parsedHours = Number(b.hours) || 0;
   var parsedQty = Number(b.quantity) || 0;
   var parsedRate = Number(b.rate) || 0;
-  
+
+  // Auto-generate Agreement document & archive to Google Drive if not already present
+  var autoGeneratedAgreement = false;
+  if (!b.agreementLink || b.agreementLink.toString().trim() === '') {
+    try {
+      var genLink = generateAgreementDocument(b);
+      if (genLink) {
+        b.agreementLink = genLink;
+        autoGeneratedAgreement = true;
+      }
+    } catch (agErr) {
+      Logger.log("Agreement auto-generation error: " + agErr.toString());
+    }
+  }
+
   var row = [
     b.businessName || '',
     b.submissionDate || '',
@@ -807,20 +1101,20 @@ function saveBusinessToSheet(ss, b) {
     b.city || '',
     b.fullAddress || '',
     b.postalCode || '',
-    normalizePhone(b.phone),
-    b.email || '',
+    b.email || '',                    // Col N (14): Email (setelah pembaruan letak kolom)
+    normalizePhone(b.phone),          // Col O (15): Phone Number (berada setelah Email)
     formattedNik,                     // Col P (16): Business Owner ID card Number (NIK 16-digit text)
     b.ktpPhotoUrl || '',              // Col Q (17): ID Card Audit (for Admin) (Link KTP Google Drive)
     b.proposalLink || '',             // Col R (18): Proposal
     b.mouLink || '',                  // Col S (19): MoU
-    b.agreementLink || '',            // Col T (20): Agreement
+    b.agreementLink || '',            // Col T (20): Agreement (Link Dokumen Google Drive)
     normalizedSt                      // Col U (21): Status (Default: Running)
   ];
-  
+
   var originalSheetName = b.originalSdrName || sheetName;
   var originalSheet = findSdrSheet(ss, originalSheetName) || sheet;
   var originalBusinessName = b.originalBusinessName || b.businessName;
-  
+
   var foundRowIndex = -1;
   var sheetData = originalSheet.getDataRange().getValues();
   for (var i = 1; i < sheetData.length; i++) {
@@ -829,24 +1123,42 @@ function saveBusinessToSheet(ss, b) {
       break;
     }
   }
-  
+
   if (b.originalBusinessName && foundRowIndex > -1) {
     if (originalSheet.getName() !== sheet.getName()) {
       originalSheet.deleteRow(foundRowIndex);
       sheet.appendRow(row);
       var newLastRow = sheet.getLastRow();
       sheet.getRange(newLastRow, 3).setNumberFormat('0');
-      return { success: true, message: 'Row moved and updated in ' + sheet.getName() };
+      recordActivityLog(actor, 'EDIT_BUSINESS', b.businessName, sheet.getName(), 'Pindah SDR dari ' + originalSheet.getName() + ' ke ' + sheet.getName() + ' dan update data (' + parsedHours + ' hrs, ' + normalizedHw + ')' + (autoGeneratedAgreement ? ' [Agreement Generated]' : ''));
+      return { 
+        success: true, 
+        message: (autoGeneratedAgreement ? 'Bisnis & Agreement berhasil dibuat di Drive! ' : '') + 'Row moved and updated in ' + sheet.getName(),
+        agreementLink: b.agreementLink || '',
+        autoGeneratedAgreement: autoGeneratedAgreement
+      };
     } else {
       sheet.getRange(foundRowIndex, 1, 1, row.length).setValues([row]);
       sheet.getRange(foundRowIndex, 3).setNumberFormat('0');
-      return { success: true, message: 'Row updated in ' + sheet.getName() };
+      recordActivityLog(actor, 'EDIT_BUSINESS', b.businessName, sheet.getName(), 'Update data bisnis (' + parsedHours + ' hrs, ' + normalizedHw + ', Status: ' + normalizedSt + ')' + (autoGeneratedAgreement ? ' [Agreement Generated]' : ''));
+      return { 
+        success: true, 
+        message: (autoGeneratedAgreement ? 'Bisnis & Agreement berhasil dibuat di Drive! ' : '') + 'Row updated in ' + sheet.getName(),
+        agreementLink: b.agreementLink || '',
+        autoGeneratedAgreement: autoGeneratedAgreement
+      };
     }
   } else {
     sheet.appendRow(row);
     var newLastRow = sheet.getLastRow();
     sheet.getRange(newLastRow, 3).setNumberFormat('0');
-    return { success: true, message: 'Row appended to ' + sheet.getName() };
+    recordActivityLog(actor, 'ADD_BUSINESS', b.businessName, sheet.getName(), 'Tambah bisnis baru (' + parsedHours + ' hrs, ' + normalizedHw + ', Rate: $' + parsedRate + ') SDR: ' + sheet.getName() + (autoGeneratedAgreement ? ' [Agreement Generated & Archived to Drive]' : ''));
+    return { 
+      success: true, 
+      message: (autoGeneratedAgreement ? 'Bisnis & Agreement berhasil dibuat & diarsipkan ke Drive! ' : '') + 'Row appended to ' + sheet.getName(),
+      agreementLink: b.agreementLink || '',
+      autoGeneratedAgreement: autoGeneratedAgreement
+    };
   }
 }
 
