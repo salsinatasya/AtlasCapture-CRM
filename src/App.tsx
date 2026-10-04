@@ -3847,11 +3847,10 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
   // Google OAuth State & Ref
   const googleBtnRef = useRef<HTMLDivElement>(null)
   const [showGoogleModal, setShowGoogleModal] = useState(false)
-  const [customClientId, setCustomClientId] = useState(() => localStorage.getItem('crm_google_client_id') || '')
   const [demoEmail, setDemoEmail] = useState('')
   const [demoName, setDemoName] = useState('')
 
-  const effectiveGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || customClientId
+  const effectiveGoogleClientId = import.meta.env.VITE_GOOGLE_CLIENT_ID || ''
 
   const handleGoogleAuth = async (info: { email: string; name?: string; avatarUrl?: string; googleId?: string }) => {
     setLoading(true)
@@ -4167,35 +4166,6 @@ function Login({ onLogin }: { onLogin: (u: User) => void }) {
                   <IconGoogle className="w-3.5 h-3.5" />
                   <span>{lang === 'id' ? 'Lanjutkan Masuk' : 'Continue Sign In'}</span>
                 </button>
-              </div>
-
-              {/* Client ID Configuration Section */}
-              <div className="pt-3 border-t border-slate-100 space-y-2">
-                <details className="text-slate-500">
-                  <summary className="font-semibold cursor-pointer hover:text-slate-800">
-                    {lang === 'id' ? '⚙️ Konfigurasi Google OAuth Client ID (.env)' : '⚙️ Configure Google OAuth Client ID (.env)'}
-                  </summary>
-                  <div className="mt-2 space-y-2 text-[11px] bg-slate-50 p-3 rounded-xl border border-slate-200">
-                    <p>
-                      {lang === 'id'
-                        ? 'Untuk tombol resmi Google One Tap, masukkan Client ID dari Google Cloud Console ke file .env:'
-                        : 'For official Google One Tap button, set your Client ID in .env:'}
-                    </p>
-                    <code className="block p-1.5 bg-white border border-slate-200 rounded font-mono text-[10px] text-slate-800">
-                      VITE_GOOGLE_CLIENT_ID=your-client-id.apps.googleusercontent.com
-                    </code>
-                    <input
-                      type="text"
-                      className="form-input text-[11px]"
-                      placeholder="Paste Client ID disini..."
-                      value={customClientId}
-                      onChange={e => {
-                        setCustomClientId(e.target.value)
-                        localStorage.setItem('crm_google_client_id', e.target.value)
-                      }}
-                    />
-                  </div>
-                </details>
               </div>
             </div>
           </div>
