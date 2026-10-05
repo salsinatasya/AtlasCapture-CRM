@@ -7,7 +7,7 @@ var USER_SPREADSHEET_ID = '1YRSrVZFm3gxTU7ZzCjPWYbMzgHo0EufvMQ9ZQ0XRPM4';     //
 var KTP_FOLDER_ID = '1Nfgfh5duU-YvwoFFUbxOj-F4fREbNVeT';                       // Google Drive Folder untuk Foto KTP
 var PROFILE_FOLDER_ID = '1E7yPKqTcSKdvRQ2csTX0gKoe0rVnrQiy';                   // Google Drive Folder untuk Foto Profil
 var AGREEMENT_FOLDER_ID = '';                                                  // Google Drive Folder untuk Arsip Agreement (kosong = auto-create folder "AtlasCapture - Agreement Archive")
-var AGREEMENT_TEMPLATE_DOC_ID = '';                                            // Google Docs Template ID untuk Agreement (isi saat template dikirim oleh user)
+var AGREEMENT_TEMPLATE_DOC_ID = '12inF35IdFF1FOXhE5P-VNq9GHN36iPzhIVCKl6mJhiA';                                            // Google Docs Template ID untuk Agreement (Atlas Pilot Agreement Business MC - Native Google Doc)
 
 function getBusinessSpreadsheet() {
   if (BUSINESS_SPREADSHEET_ID) {
@@ -89,6 +89,10 @@ function getOrCreateAgreementFolder() {
   return DriveApp.createFolder("AtlasCapture - Agreement Archive");
 }
 
+function escapeRegexForDocs(str) {
+  return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+}
+
 function generateAgreementDocument(b) {
   try {
     var folder = getOrCreateAgreementFolder();
@@ -102,14 +106,63 @@ function generateAgreementDocument(b) {
     var normPhone = normalizePhone(b.phone);
     var normHw = normalizeHardware(b.hardware);
 
+    var fullAddr = (b.fullAddress || '').toString().trim();
+    if (b.city && fullAddr.toLowerCase().indexOf(b.city.toString().toLowerCase()) === -1) {
+      fullAddr += (fullAddr ? ', ' : '') + b.city;
+    }
+    if (b.postalCode && fullAddr.indexOf(b.postalCode.toString()) === -1) {
+      fullAddr += ' ' + b.postalCode;
+    }
+
+    var titleVal = (b.title || b.ownerTitle || '').toString().trim() || ((b.accountType === 'COMPANY' || b.accountType === 'PT' || b.accountType === 'CV') ? 'Direktur / Penanggung Jawab' : 'Owner / Pemilik');
+
     if (AGREEMENT_TEMPLATE_DOC_ID && AGREEMENT_TEMPLATE_DOC_ID.toString().trim() !== '') {
-      // 1. Template-driven generation (using Google Doc template provided by user)
-      var template = DriveApp.getFileById(AGREEMENT_TEMPLATE_DOC_ID.toString().trim());
-      createdFile = template.makeCopy(fileName, folder);
-      var doc = DocumentApp.openById(createdFile.getId());
+      var templateId = AGREEMENT_TEMPLATE_DOC_ID.toString().trim();
+      var template = DriveApp.getFileById(templateId);
+
+      // Support auto-converting Word (.docx) to Google Docs if Advanced Drive Service is enabled
+      var mime = template.getMimeType();
+      var isWordDoc = mime === MimeType.MICROSOFT_WORD || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || template.getName().toLowerCase().endsWith('.docx');
+      
+      if (isWordDoc && typeof Drive !== 'undefined' && Drive.Files && Drive.Files.copy) {
+        try {
+          var copyRes = Drive.Files.copy({
+            title: fileName,
+            parents: [{ id: folder.getId() }],
+            mimeType: MimeType.GOOGLE_DOCS
+          }, templateId);
+          createdFile = DriveApp.getFileById(copyRes.id);
+        } catch (apiErr) {
+          Logger.log("Drive API copy failed: " + apiErr.toString());
+        }
+      }
+
+      if (!createdFile) {
+        createdFile = template.makeCopy(fileName, folder);
+      }
+
+      var doc = null;
+      try {
+        doc = DocumentApp.openById(createdFile.getId());
+      } catch (openErr) {
+        Logger.log("DocumentApp.openById failed: " + openErr.toString());
+        throw new Error("File template bukan format Google Dokumen murni. Silakan buka file di Google Drive lalu pilih menu 'File' > 'Simpan sebagai Google Dokumen'.");
+      }
+
       var body = doc.getBody();
 
       var replacements = {
+        // Template exact tags (Atlas Pilot Agreement Business MC)
+        '{{Submission-Date}}': subDate,
+        '{{Submission-Date}': subDate,
+        '{{Business-Name}}': bizName,
+        '{{Full-Address}}': fullAddr,
+        '{{Target-Hours}}': (b.hours || '0').toString(),
+        '{{Kit-Quantity}}': (b.quantity || '1').toString(),
+        '{{Account-Holder-Name}}': b.accountHolderName || bizName,
+        '{{Title}}': titleVal,
+
+        // Standard CRM tags
         '{{BUSINESS_NAME}}': bizName,
         '{{NAMA_BISNIS}}': bizName,
         '{{BUSINESS}}': bizName,
@@ -140,9 +193,9 @@ function generateAgreementDocument(b) {
         '{{TIPE_REKENING}}': b.accountType || 'PERSON',
         '{{CITY}}': b.city || '',
         '{{KOTA}}': b.city || '',
-        '{{FULL_ADDRESS}}': b.fullAddress || '',
-        '{{ADDRESS}}': b.fullAddress || '',
-        '{{ALAMAT}}': b.fullAddress || '',
+        '{{FULL_ADDRESS}}': fullAddr,
+        '{{ADDRESS}}': fullAddr,
+        '{{ALAMAT}}': fullAddr,
         '{{POSTAL_CODE}}': b.postalCode || '',
         '{{KODE_POS}}': b.postalCode || '',
         '{{EMAIL}}': b.email || '',
@@ -156,22 +209,27 @@ function generateAgreementDocument(b) {
       };
 
       for (var key in replacements) {
-        body.replaceText(key, replacements[key] || '');
+        var val = (replacements[key] !== undefined && replacements[key] !== null) ? replacements[key].toString() : '';
+        body.replaceText(escapeRegexForDocs(key), val);
         var singleBrace = key.replace('{{', '{').replace('}}', '}');
-        body.replaceText(singleBrace, replacements[key] || '');
+        if (singleBrace !== key) {
+          body.replaceText(escapeRegexForDocs(singleBrace), val);
+        }
       }
 
       try {
         var header = doc.getHeader();
         if (header) {
           for (var hk in replacements) {
-            header.replaceText(hk, replacements[hk] || '');
+            var hVal = (replacements[hk] !== undefined && replacements[hk] !== null) ? replacements[hk].toString() : '';
+            header.replaceText(escapeRegexForDocs(hk), hVal);
           }
         }
         var footer = doc.getFooter();
         if (footer) {
           for (var fk in replacements) {
-            footer.replaceText(fk, replacements[fk] || '');
+            var fVal = (replacements[fk] !== undefined && replacements[fk] !== null) ? replacements[fk].toString() : '';
+            footer.replaceText(escapeRegexForDocs(fk), fVal);
           }
         }
       } catch (hfErr) {}

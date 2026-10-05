@@ -938,6 +938,7 @@ export interface Business {
   phone: string
   email: string
   ownerKtp: string
+  title: string
   proposalLink: string
   mouLink: string
   agreementLink: string
@@ -967,7 +968,7 @@ export interface ActivityLog {
   details: string
 }
 
-type Page = 'dashboard' | 'businesses' | 'sdr' | 'team'
+type Page = 'dashboard' | 'businesses' | 'sdr' | 'team' | 'shoot-report' | 'activity'
 
 const SDR_LIST = ['Aldy', 'Ariel', 'Billy', 'Hendra', 'Irwan', 'Markus', 'Riki', 'Reksa', 'Reksi', 'Sefti', 'Wahyu']
 
@@ -1088,7 +1089,7 @@ const BLANK_FORM: Omit<Business, 'id'> = {
   businessName: '', sdrName: SDR_LIST[0], submissionDate: '', hours: 0,
   hardware: 'MC', quantity: 1, rate: 0, accountHolderName: '', bankName: WISE_BANKS[0],
   accountNumber: '', accountType: 'PERSON', city: '', fullAddress: '',
-  postalCode: '', phone: '', email: '', ownerKtp: '', proposalLink: '',
+  postalCode: '', phone: '', email: '', ownerKtp: '', title: '', proposalLink: '',
   mouLink: '', agreementLink: '', status: 'Running', ktpPhotoUrl: '',
 }
 
@@ -1286,6 +1287,7 @@ function BusinessModal({
   const t = TRANSLATIONS[lang]
   const [form, setForm] = useState(() => ({
     ...initial,
+    title: initial.title || '',
     phone: normalizePhoneNumber(initial.phone)
   }))
 
@@ -1392,6 +1394,11 @@ function BusinessModal({
       return
     }
 
+    if (!form.title || !form.title.trim()) {
+      alert(lang === 'id' ? 'Jabatan / Title Pemilik wajib diisi untuk dokumen Agreement (contoh: Owner of Atlas Capture / Director).' : 'Owner Title / Position is required for Agreement document (e.g. Owner of Atlas Capture / Director).')
+      return
+    }
+
     const cleanNik = (form.ownerKtp || '').trim()
     if (!/^\d{16}$/.test(cleanNik)) {
       alert(lang === 'id' ? 'NIK wajib diisi tepat 16 digit angka.' : 'NIK / ID Card Number must be exactly 16 digits.')
@@ -1446,6 +1453,7 @@ function BusinessModal({
 
     onSave({
       ...form,
+      title: form.title.trim(),
       phone: cleanPhone,
       status: finalStatus,
       ownerKtp: cleanNik,
@@ -1634,12 +1642,22 @@ function BusinessModal({
             </div>
           </div>
 
-          {/* Section 4: NIK & KTP Identity */}
+          {/* Section 4: NIK, Title & KTP Identity */}
           <div>
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 font-mono border-b pb-1 border-slate-100">
-              {lang === 'id' ? 'Identitas Pemilik Bisnis (NIK & KTP)' : 'Business Owner Identity (NIK & ID Card)'}
+              {lang === 'id' ? 'Identitas & Jabatan Pemilik (Agreement & NIK)' : 'Business Owner Identity & Title (Agreement & NIK)'}
             </h3>
             <div className="space-y-4">
+              <Field label={lang === 'id' ? 'Jabatan / Title Pemilik' : 'Owner Title / Position'} required>
+                <input
+                  className="form-input"
+                  placeholder={lang === 'id' ? 'Contoh: Owner of Atlas Capture' : 'Example: Owner of Atlas Capture'}
+                  value={form.title}
+                  onChange={e => set('title', e.target.value)}
+                  required
+                />
+              </Field>
+
               <Field label={lang === 'id' ? 'NIK Pemilik Bisnis (16 Digit Angka)' : 'Owner NIK (16 Digits Number)'} required>
                 <input
                   className="form-input font-mono tracking-wider"
@@ -1900,6 +1918,7 @@ function DetailModal({
             <p className="text-slate-600"><strong>{t.detailBankName}:</strong> {b.bankName}</p>
             <p className="text-slate-600"><strong>{t.detailAccNumber}:</strong> {b.accountNumber || '—'}</p>
             <p className="text-slate-600"><strong>{t.detailAccHolder}:</strong> {b.accountHolderName || '—'}</p>
+            <p className="text-slate-600"><strong>{lang === 'id' ? 'Jabatan / Title' : 'Title / Position'}:</strong> {b.title || '—'}</p>
           </div>
 
           {b.ktpPhotoUrl && (
@@ -5269,6 +5288,7 @@ export default function App() {
           email: (row['Email'] || row['email'] || '').toString().trim(),
           phone: normalizePhoneNumber((row['Phone Number'] || row['Phone'] || row['Nomor Telepon'] || '').toString().trim()),
           ownerKtp: ownerKtp,
+          title: (row['Title'] || row['title'] || row['Jabatan'] || row['Owner Title'] || '').toString().trim() || 'Owner',
           proposalLink: (row['Proposal'] || '').toString().trim(),
           mouLink: (row['MoU'] || '').toString().trim(),
           agreementLink: (row['Agreement'] || '').toString().trim(),
