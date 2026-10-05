@@ -90,7 +90,7 @@ function getOrCreateAgreementFolder() {
 }
 
 function escapeRegexForDocs(str) {
-  return str.replace(/[-\/\\^$*+?.()|[\]{}]/g, '\\$&');
+  return str.replace(/[\^$\\.*+?()[\]{}|]/g, '\\$&');
 }
 
 function generateAgreementDocument(b) {
@@ -124,16 +124,18 @@ function generateAgreementDocument(b) {
       var mime = template.getMimeType();
       var isWordDoc = mime === MimeType.MICROSOFT_WORD || mime === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || template.getName().toLowerCase().endsWith('.docx');
       
-      if (isWordDoc && typeof Drive !== 'undefined' && Drive.Files && Drive.Files.copy) {
+      if (isWordDoc && typeof Drive !== 'undefined' && Drive.Files) {
         try {
-          var copyRes = Drive.Files.copy({
-            title: fileName,
-            parents: [{ id: folder.getId() }],
-            mimeType: MimeType.GOOGLE_DOCS
-          }, templateId);
-          createdFile = DriveApp.getFileById(copyRes.id);
+          var insertRes = Drive.Files.insert(
+            { title: fileName, parents: [{ id: folder.getId() }] },
+            template.getBlob(),
+            { convert: true }
+          );
+          if (insertRes && insertRes.id) {
+            createdFile = DriveApp.getFileById(insertRes.id);
+          }
         } catch (apiErr) {
-          Logger.log("Drive API copy failed: " + apiErr.toString());
+          Logger.log("Drive API convert failed: " + apiErr.toString());
         }
       }
 
@@ -146,7 +148,7 @@ function generateAgreementDocument(b) {
         doc = DocumentApp.openById(createdFile.getId());
       } catch (openErr) {
         Logger.log("DocumentApp.openById failed: " + openErr.toString());
-        throw new Error("File template bukan format Google Dokumen murni. Silakan buka file di Google Drive lalu pilih menu 'File' > 'Simpan sebagai Google Dokumen'.");
+        throw new Error("Gagal membuka dokumen (Mime: " + createdFile.getMimeType() + ", Nama: " + createdFile.getName() + "): " + openErr.toString());
       }
 
       var body = doc.getBody();
@@ -293,8 +295,34 @@ function generateAgreementDocument(b) {
     return createdFile.getUrl();
   } catch (err) {
     Logger.log("Error generating agreement document: " + err.toString());
-    return '';
+    throw new Error(err.message || err.toString());
   }
+}
+
+function testAgreement() {
+  var sample = {
+    businessName: "Kopi Kenangan Test",
+    sdrName: "Aldy",
+    submissionDate: "2026-10-05",
+    hours: 10,
+    hardware: "MC",
+    quantity: 1,
+    rate: 5,
+    accountHolderName: "Budi Santoso",
+    bankName: "BCA",
+    accountNumber: "1234567890",
+    accountType: "PERSON",
+    city: "Tangerang",
+    fullAddress: "Jl. Merdeka No. 10",
+    postalCode: "15111",
+    phone: "+628123456789",
+    email: "test@example.com",
+    ownerKtp: "3671120910910005",
+    title: "Owner of Kopi Kenangan Test"
+  };
+  var url = generateAgreementDocument(sample);
+  Logger.log("Agreement Berhasil Dibuat: " + url);
+  return url;
 }
 
 function getOrCreateActivityLogsSheet(ss) {
@@ -378,7 +406,7 @@ function normalizeStatus(st) {
   if (lower === 'pending') return 'pending';
   if (lower === 'canceled' || lower === 'cancelled' || lower === 'cancel') return 'canceled';
   if (lower === 'stopped' || lower === 'stop' || lower === 'reject' || lower === 'rejected') return 'Stopped';
-  if (lower === 'fraud') return 'Fraud';
+  if (lower === 'duplicate' || lower === 'duplikat' || lower === 'fraud') return 'Duplicate';
   return st.toString().trim();
 }
 
@@ -860,33 +888,40 @@ function doPost(e) {
       var sName = bData.sdrName || payload.sdrName || '';
       var targetSheet = findSdrSheet(ss, sName);
 
-      var agreementUrl = generateAgreementDocument(bData);
-      if (!agreementUrl) {
-        return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Gagal membuat dokumen agreement di Google Drive.' }))
-          .setMimeType(ContentService.MimeType.JSON);
-      }
+      try {
+        var agreementUrl = generateAgreementDocument(bData);
+        if (!agreementUrl) {
+          return ContentService.createTextOutput(JSON.stringify({ success: false, error: 'Gagal membuat dokumen agreement (URL kosong).' }))
+            .setMimeType(ContentService.MimeType.JSON);
+        }
 
-      // Update Column T (20) in Spreadsheet if row found
-      if (targetSheet) {
-        var sValues = targetSheet.getDataRange().getValues();
-        for (var idx = 1; idx < sValues.length; idx++) {
-          if (sValues[idx][0] && sValues[idx][0].toString().trim().toLowerCase() === bName.trim().toLowerCase()) {
-            targetSheet.getRange(idx + 1, 20).setValue(agreementUrl);
-            recordActivityLog(payload.actor, 'GENERATE_AGREEMENT', bName, targetSheet.getName(), 'Agreement dibuat & diarsipkan ke Drive: ' + agreementUrl);
-            return ContentService.createTextOutput(JSON.stringify({
-              success: true,
-              message: 'Dokumen agreement berhasil digenerate dan diarsipkan ke Google Drive!',
-              agreementLink: agreementUrl
-            })).setMimeType(ContentService.MimeType.JSON);
+        // Update Column T (20) in Spreadsheet if row found
+        if (targetSheet) {
+          var sValues = targetSheet.getDataRange().getValues();
+          for (var idx = 1; idx < sValues.length; idx++) {
+            if (sValues[idx][0] && sValues[idx][0].toString().trim().toLowerCase() === bName.trim().toLowerCase()) {
+              targetSheet.getRange(idx + 1, 20).setValue(agreementUrl);
+              recordActivityLog(payload.actor, 'GENERATE_AGREEMENT', bName, targetSheet.getName(), 'Agreement dibuat & diarsipkan ke Drive: ' + agreementUrl);
+              return ContentService.createTextOutput(JSON.stringify({
+                success: true,
+                message: 'Dokumen agreement berhasil digenerate dan diarsipkan ke Google Drive!',
+                agreementLink: agreementUrl
+              })).setMimeType(ContentService.MimeType.JSON);
+            }
           }
         }
-      }
 
-      return ContentService.createTextOutput(JSON.stringify({
-        success: true,
-        message: 'Dokumen agreement berhasil digenerate!',
-        agreementLink: agreementUrl
-      })).setMimeType(ContentService.MimeType.JSON);
+        return ContentService.createTextOutput(JSON.stringify({
+          success: true,
+          message: 'Dokumen agreement berhasil digenerate!',
+          agreementLink: agreementUrl
+        })).setMimeType(ContentService.MimeType.JSON);
+      } catch (genErr) {
+        return ContentService.createTextOutput(JSON.stringify({
+          success: false,
+          error: 'Gagal generate agreement: ' + (genErr.message || genErr.toString())
+        })).setMimeType(ContentService.MimeType.JSON);
+      }
     }
 
     // --------------------------------------------------------------------------

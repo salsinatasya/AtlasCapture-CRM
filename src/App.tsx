@@ -49,6 +49,30 @@ function IconFileText({ className = "w-4 h-4" }: { className?: string }) {
   )
 }
 
+function IconArchive({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M20.25 7.5l-.625 10.632a2.25 2.25 0 01-2.247 2.118H6.622a2.25 2.25 0 01-2.247-2.118L3.75 7.5M10 11.25h4M3.375 7.5h17.25c.621 0 1.125-.504 1.125-1.125v-1.5c0-.621-.504-1.125-1.125-1.125H3.375c-.621 0-1.125.504-1.125 1.125v1.5c0 .621.504 1.125 1.125 1.125z" />
+    </svg>
+  )
+}
+
+function IconDownload({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 005.25 21h13.5A2.25 2.25 0 0021 18.75V16.5M16.5 12L12 16.5m0 0L7.5 12m4.5 4.5V3" />
+    </svg>
+  )
+}
+
+function IconPrinter({ className = "w-4 h-4" }: { className?: string }) {
+  return (
+    <svg className={className} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.75}>
+      <path strokeLinecap="round" strokeLinejoin="round" d="M6.72 13.829c-.24.03-.48.062-.72.096m.72-.096a42.415 42.415 0 0110.56 0m-10.56 0L6.34 18m10.94-4.171c.24.03.48.062.72.096m-.72-.096L17.66 18m0 0l.229 2.523a1.125 1.125 0 01-1.12 1.227H7.231c-.662 0-1.18-.568-1.12-1.227L6.34 18m11.318 0h1.091A2.25 2.25 0 0021 15.75V9.456c0-1.081-.768-2.015-1.837-2.175a48.055 48.055 0 00-1.913-.247M6.34 18H5.25A2.25 2.25 0 013 15.75V9.456c0-1.081.768-2.015 1.837-2.175a48.041 48.041 0 011.913-.247m10.5 0a48.536 48.536 0 00-10.5 0m10.5 0V3.375c0-.621-.504-1.125-1.125-1.125h-8.25c-.621 0-1.125.504-1.125 1.125v3.656h10.5z" />
+    </svg>
+  )
+}
+
 function IconGoogle({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24">
@@ -200,6 +224,11 @@ export const TRANSLATIONS = {
     portalSub: 'Operations Portal',
     navDashboard: 'Dashboard',
     navBusinesses: 'Semua Bisnis',
+    navArchive: 'Arsip Dokumen',
+    archiveTitle: 'Arsip Dokumen & Kontrak',
+    archiveSub: 'Pusat repositori berkas digital kemitraan, perjanjian (Agreement), dan KTP',
+    downloadPdf: 'Unduh PDF',
+    previewPdf: 'Preview & Cetak PDF',
     navSdr: 'Direktori SDR',
     navShootReport: 'Shoot Report',
     navApprovals: 'Permintaan Approval',
@@ -392,6 +421,11 @@ export const TRANSLATIONS = {
     portalSub: 'Operations Portal',
     navDashboard: 'Dashboard',
     navBusinesses: 'All Businesses',
+    navArchive: 'Document Archive',
+    archiveTitle: 'Document & Contract Archive',
+    archiveSub: 'Central repository for partnership agreements, owner ID cards, and business filings',
+    downloadPdf: 'Download PDF',
+    previewPdf: 'Preview & Print PDF',
     navSdr: 'SDR Directory',
     navShootReport: 'Shoot Report',
     navApprovals: 'Approval Requests',
@@ -591,7 +625,8 @@ export function getStatusLabel(status: Status, lang: Language): string {
       case 'pending': return 'Pending Approval'
       case 'canceled': return 'Canceled'
       case 'Stopped': return 'Stopped'
-      case 'Fraud': return 'Fraud (Duplicate Data)'
+      case 'Duplicate': return 'Duplicate'
+      case 'Fraud': return 'Duplicate'
       default: return status
     }
   }
@@ -601,14 +636,15 @@ export function getStatusLabel(status: Status, lang: Language): string {
     case 'pending': return 'Menunggu Persetujuan'
     case 'canceled': return 'Dibatalkan'
     case 'Stopped': return 'Dihentikan'
-    case 'Fraud': return 'Fraud (Data Duplikat)'
+    case 'Duplicate': return 'Duplicate'
+    case 'Fraud': return 'Duplicate'
     default: return status
   }
 }
 
-export const SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzt0SiU7dM04w3MbNLRGGLys4WCoCGsWpJjlL-5kCBYLIJucqwGElLkCqZZGLY2qnJ9/exec'
+export const SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbwhIbVy-gG5A-Jlf6pJPlpjDGvYtL_KslPq6KnQcGooUt30FubZbqY7oAYt1gXX-N4/exec'
 
-// ─── Phone & Duplicate / Fraud Helpers ────────────────────────────────────────
+// ─── Phone & Duplicate Helpers ──────────────────────────────────────────────
 
 export function normalizePhoneNumber(raw?: string): string {
   if (!raw) return ''
@@ -631,6 +667,24 @@ export function formatPhoneDisplay(raw?: string): string {
   if (!normalized) return raw
   const without62 = normalized.startsWith('62') ? normalized.slice(2) : normalized
   return `+62 ${without62}`
+}
+
+export function getPdfDownloadUrl(docUrl?: string): string | null {
+  if (!docUrl) return null
+  const clean = docUrl.trim()
+  const docMatch = clean.match(/\/document\/d\/([a-zA-Z0-9_-]+)/)
+  if (docMatch && docMatch[1]) {
+    return `https://docs.google.com/document/d/${docMatch[1]}/export?format=pdf`
+  }
+  const fileMatch = clean.match(/\/file\/d\/([a-zA-Z0-9_-]+)/)
+  if (fileMatch && fileMatch[1]) {
+    return `https://docs.google.com/document/d/${fileMatch[1]}/export?format=pdf`
+  }
+  const idMatch = clean.match(/[?&]id=([a-zA-Z0-9_-]+)/)
+  if (idMatch && idMatch[1]) {
+    return `https://docs.google.com/document/d/${idMatch[1]}/export?format=pdf`
+  }
+  return null
 }
 
 export function checkDuplicateOwner(
@@ -657,24 +711,24 @@ export function checkDuplicateOwner(
     if (cleanNik && cleanNik.length === 16 && bNik === cleanNik) {
       reasons.push(
         lang === 'en'
-          ? `Owner NIK (${cleanNik}) already registered under business "${b.businessName}" (SDR: ${b.sdrName})`
-          : `NIK KTP Pemilik (${cleanNik}) sudah terdaftar di bisnis "${b.businessName}" (SDR: ${b.sdrName})`
+          ? `Data NIK (${cleanNik}) has been used in business "${b.businessName}"`
+          : `Data NIK (${cleanNik}) telah digunakan di bisnis "${b.businessName}"`
       )
       matchedThis = true
     }
     if (cleanAcc && cleanAcc.length >= 6 && bAcc === cleanAcc) {
       reasons.push(
         lang === 'en'
-          ? `Bank Account Number (${cleanAcc}) already registered under business "${b.businessName}" (SDR: ${b.sdrName})`
-          : `Nomor Rekening Bank (${cleanAcc}) sudah terdaftar di bisnis "${b.businessName}" (SDR: ${b.sdrName})`
+          ? `Data Bank Account Number (${cleanAcc}) has been used in business "${b.businessName}"`
+          : `Data Nomor Rekening (${cleanAcc}) telah digunakan di bisnis "${b.businessName}"`
       )
       matchedThis = true
     }
     if (cleanPhone && cleanPhone.length >= 10 && bPhone === cleanPhone) {
       reasons.push(
         lang === 'en'
-          ? `Phone Number (+${cleanPhone}) already registered under business "${b.businessName}" (SDR: ${b.sdrName})`
-          : `Nomor Telepon (+${cleanPhone}) sudah terdaftar di bisnis "${b.businessName}" (SDR: ${b.sdrName})`
+          ? `Data Phone Number (+${cleanPhone}) has been used in business "${b.businessName}"`
+          : `Data Nomor Telepon (+${cleanPhone}) telah digunakan di bisnis "${b.businessName}"`
       )
       matchedThis = true
     }
@@ -779,24 +833,21 @@ export interface ShootBusinessGroup {
   utilPercent: number
 }
 
-export type Status = 'Running' | 'pending' | 'approved' | 'canceled' | 'Stopped' | 'Fraud'
+export type Status = 'Running' | 'pending' | 'approved' | 'canceled' | 'Stopped' | 'Duplicate' | 'Fraud'
 type BankName = string
 type AccountType = 'PERSON' | 'BUSINESS'
 
 const WISE_BANKS = [
-  "Allo Bank Indonesia",
-  "BANK JATIM UNIT USAHA SYARIAH",
-  "BANK PEMBANGUNAN DAERAH JAMBI",
-  "BANK PEMBANGUNAN DAERAH JAMBI UUS",
+  "Bank Central Asia (BCA)",
+  "Bank Negara Indonesia (BNI)",
+  "Bank Mandiri",
+  "Bank Rakyat Indonesia (BRI)",
+  "Bank Syariah Indonesia (BSI)",
+  "Bank Tabungan Negara (BTN)",
+  "Bank Digital BCA (Blu)",
   "Bank Aceh Syariah",
-  "Bank Aladin Syariah",
-  "Bank Amar Indonesia",
   "Bank ANZ Indonesia",
   "Bank Artha Graha Internasional",
-  "Bank BTPN",
-  "Bank BTPN Syariah",
-  "Bank BUKOPIN",
-  "Bank BUKOPIN Syariah",
   "Bank BCA Syariah",
   "Bank Bengkulu",
   "Bank BJB",
@@ -806,33 +857,31 @@ const WISE_BANKS = [
   "Bank BPD DIY",
   "Bank BPD DIY Syariah",
   "Bank BRK Syariah",
-  "Bank BSG",
+  "Bank BSG (Bank SulutGo)",
+  "Bank BTPN",
+  "Bank BTPN Syariah",
   "Bank Bumi Arta",
   "Bank Capital Indonesia",
-  "Bank Central Asia (BCA)",
   "Bank CIMB Niaga",
   "Bank CIMB Niaga Syariah",
   "Bank CTBC Indonesia",
   "Bank Danamon",
   "Bank Danamon Syariah",
   "Bank DBS Indonesia",
-  "Bank Digital BCA (Blu)",
   "Bank DKI",
   "Bank DKI Syariah",
   "Bank Ganesha",
-  "Bank Hana",
-  "Bank Harda Internasional (Allo Bank)",
+  "Bank Hana (KEB Hana)",
   "Bank HSBC Indonesia",
   "Bank IBK Indonesia",
   "Bank ICBC Indonesia",
   "Bank Ina Perdana",
   "Bank Index Selindo",
-  "Bank Jago",
-  "Bank Jago Syariah",
   "Bank Jasa Jakarta",
   "Bank Jateng",
   "Bank Jateng Syariah",
   "Bank Jatim",
+  "Bank Jatim Syariah",
   "Bank JTrust Indonesia",
   "Bank Kalbar",
   "Bank Kalbar Syariah",
@@ -842,9 +891,9 @@ const WISE_BANKS = [
   "Bank Kaltimtara",
   "Bank Kaltimtara Syariah",
   "Bank KB Bukopin",
+  "Bank KB Bukopin Syariah",
   "Bank Lampung",
   "Bank Maluku Malut",
-  "Bank Mandiri",
   "Bank Mandiri Taspen",
   "Bank Maspion Indonesia",
   "Bank Mayapada Internasional",
@@ -860,23 +909,23 @@ const WISE_BANKS = [
   "Bank Nagari",
   "Bank Nagari Syariah",
   "Bank Nationalnobu",
-  "Bank Neocommerce (BNC)",
   "Bank NTB Syariah",
   "Bank NTT",
   "Bank OCBC NISP",
   "Bank OCBC NISP Syariah",
   "Bank Of China (Hong Kong) Limited",
   "Bank Of India Indonesia",
+  "Bank Oke Indonesia",
   "Bank Papua",
+  "Bank Pembangunan Daerah Jambi",
+  "Bank Pembangunan Daerah Jambi UUS",
   "Bank Permata",
   "Bank Permata Syariah",
   "Bank QNB Indonesia",
-  "Bank Raya Indonesia",
   "Bank Resona Perdania",
   "Bank Riau Kepri Syariah",
   "Bank Sahabat Sampoerna",
   "Bank SBI Indonesia",
-  "Bank Seabank Indonesia",
   "Bank Shinhan Indonesia",
   "Bank Sinarmas",
   "Bank Sinarmas Syariah",
@@ -888,35 +937,16 @@ const WISE_BANKS = [
   "Bank Sumsel Babel Syariah",
   "Bank Sumut",
   "Bank Sumut Syariah",
-  "Bank Syariah Indonesia (BSI)",
-  "Bank Tabungan Negara (BTN)",
   "Bank Tabungan Negara Syariah",
   "Bank UOB Indonesia",
   "Bank Victoria Internasional",
   "Bank Victoria Syariah",
   "Bank Woori Saudara Indonesia 1906",
-  "BCA Bank Central Asia",
-  "BPD Kalsel Syariah",
-  "BRI Bank Rakyat Indonesia",
   "Citibank N.A.",
-  "DBS Bank Indonesia",
   "Deutsche Bank AG",
   "JPMorgan Chase Bank, N.A.",
   "MUFG Bank, Ltd.",
-  "PT BANK BPD DIY",
-  "PT BANK IBK INDONESIA TBK",
-  "PT BANK KB BUKOPIN TBK",
-  "PT Bank KEB Hana Indonesia",
-  "PT BANK MANDIRI (PERSERO) TBK",
-  "PT BANK NATIONALNOBU TBK",
-  "PT BANK OKE INDONESIA TBK",
-  "PT BANK SEABANK INDONESIA",
-  "PT BANK SHINHAN INDONESIA",
-  "PT BANK WOORI SAUDARA INDONESIA 1906 TBK",
-  "PT BPD SULAWESI TENGAH",
-  "PT SUPER BANK INDONESIA",
-  "Standard Chartered Bank",
-  "Superbank"
+  "Standard Chartered Bank"
 ]
 
 export interface Business {
@@ -968,7 +998,7 @@ export interface ActivityLog {
   details: string
 }
 
-type Page = 'dashboard' | 'businesses' | 'sdr' | 'team' | 'shoot-report' | 'activity'
+type Page = 'dashboard' | 'businesses' | 'archive' | 'sdr' | 'team' | 'shoot-report' | 'activity'
 
 const SDR_LIST = ['Aldy', 'Ariel', 'Billy', 'Hendra', 'Irwan', 'Markus', 'Riki', 'Reksa', 'Reksi', 'Sefti', 'Wahyu']
 
@@ -1075,7 +1105,8 @@ const STATUS_COLORS: Record<Status, string> = {
   pending: 'bg-amber-50 text-amber-800 border border-amber-300 font-semibold',
   canceled: 'bg-rose-50 text-rose-800 border border-rose-300 font-semibold',
   Stopped: 'bg-slate-100 text-slate-700 border border-slate-300 font-semibold',
-  Fraud: 'bg-rose-100 text-rose-800 border border-rose-400 font-bold',
+  Duplicate: 'bg-amber-50 text-amber-800 border border-amber-300 font-bold',
+  Fraud: 'bg-amber-50 text-amber-800 border border-amber-300 font-bold',
 }
 
 const HARDWARE_COLORS: Record<Hardware, string> = {
@@ -1267,6 +1298,173 @@ function Field({
   )
 }
 
+// ─── Searchable Bank Dropdown Component ──────────────────────────────────────
+
+function SearchableBankSelect({
+  value,
+  onChange,
+  banks,
+  placeholder,
+  lang = 'id',
+}: {
+  value: string
+  onChange: (val: string) => void
+  banks: string[]
+  placeholder?: string
+  lang?: Language
+}) {
+  const [isOpen, setIsOpen] = useState(false)
+  const [query, setQuery] = useState('')
+  const containerRef = useRef<HTMLDivElement>(null)
+  const searchInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => {
+    function handleClickOutside(event: MouseEvent) {
+      if (containerRef.current && !containerRef.current.contains(event.target as Node)) {
+        setIsOpen(false)
+      }
+    }
+    document.addEventListener('mousedown', handleClickOutside)
+    return () => document.removeEventListener('mousedown', handleClickOutside)
+  }, [])
+
+  useEffect(() => {
+    if (isOpen) {
+      setTimeout(() => {
+        searchInputRef.current?.focus()
+      }, 50)
+    } else {
+      setQuery('')
+    }
+  }, [isOpen])
+
+  const filteredBanks = useMemo(() => {
+    const q = query.trim().toLowerCase()
+    if (!q) return banks
+    return banks.filter(b => b.toLowerCase().includes(q))
+  }, [banks, query])
+
+  const popularBanks = useMemo(() => [
+    'Bank Central Asia (BCA)',
+    'Bank Negara Indonesia (BNI)',
+    'Bank Mandiri',
+    'Bank Rakyat Indonesia (BRI)',
+    'Bank Digital BCA (Blu)',
+    'Bank Syariah Indonesia (BSI)',
+  ].filter(pb => banks.includes(pb)), [banks])
+
+  return (
+    <div className="relative" ref={containerRef}>
+      {/* Trigger button styled as form-input */}
+      <button
+        type="button"
+        onClick={() => setIsOpen(!isOpen)}
+        className="form-input font-medium flex items-center justify-between text-left cursor-pointer hover:border-slate-400 focus:outline-none focus:ring-2 focus:ring-blue-500/20 bg-white"
+      >
+        <span className={`truncate text-sm ${value ? 'text-slate-900 font-medium' : 'text-slate-400'}`}>
+          {value || placeholder || (lang === 'id' ? 'Pilih Bank' : 'Select Bank')}
+        </span>
+        <svg
+          className={`w-4 h-4 ml-2 text-slate-400 shrink-0 transition-transform duration-150 ${isOpen ? 'rotate-180' : ''}`}
+          fill="none"
+          stroke="currentColor"
+          viewBox="0 0 24 24"
+        >
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {/* Dropdown Menu */}
+      {isOpen && (
+        <div className="absolute left-0 right-0 mt-1 bg-white border border-slate-200 rounded-xl shadow-2xl z-50 overflow-hidden flex flex-col max-h-72">
+          {/* Search Header */}
+          <div className="p-2 border-b border-slate-100 bg-slate-50 flex items-center gap-2">
+            <svg className="w-4 h-4 text-slate-400 shrink-0 ml-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              ref={searchInputRef}
+              type="text"
+              value={query}
+              onChange={e => setQuery(e.target.value)}
+              placeholder={lang === 'id' ? 'Cari bank (contoh: BNI, BCA, Mandiri)...' : 'Search bank (e.g. BNI, BCA, Mandiri)...'}
+              className="w-full text-xs bg-transparent border-0 outline-none text-slate-900 placeholder:text-slate-400 py-1"
+            />
+            {query && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                className="text-slate-400 hover:text-slate-600 text-xs px-1.5 py-0.5 rounded cursor-pointer"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
+          {/* Quick Popular Banks Pills */}
+          {!query && popularBanks.length > 0 && (
+            <div className="px-2.5 py-1.5 bg-slate-50/70 border-b border-slate-100 flex flex-wrap gap-1 items-center">
+              <span className="text-[10px] uppercase font-bold text-slate-400 mr-1 font-mono">
+                {lang === 'id' ? 'Populer:' : 'Popular:'}
+              </span>
+              {popularBanks.map(pb => (
+                <button
+                  key={pb}
+                  type="button"
+                  onClick={() => {
+                    onChange(pb)
+                    setIsOpen(false)
+                  }}
+                  className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
+                    value === pb
+                      ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                      : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50'
+                  }`}
+                >
+                  {pb.replace('Bank ', '').replace('Digital ', '')}
+                </button>
+              ))}
+            </div>
+          )}
+
+          {/* Bank list */}
+          <div className="overflow-y-auto max-h-52 divide-y divide-slate-50">
+            {filteredBanks.length === 0 ? (
+              <div className="p-4 text-center text-xs text-slate-400 font-medium">
+                {lang === 'id' ? 'Bank tidak ditemukan' : 'No bank found'}
+              </div>
+            ) : (
+              filteredBanks.map(b => {
+                const isSelected = b === value
+                return (
+                  <button
+                    key={b}
+                    type="button"
+                    onClick={() => {
+                      onChange(b)
+                      setIsOpen(false)
+                    }}
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors cursor-pointer ${
+                      isSelected
+                        ? 'bg-blue-50 text-blue-700 font-semibold'
+                        : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                    }`}
+                  >
+                    <span className="truncate">{b}</span>
+                    {isSelected && (
+                      <span className="text-blue-600 text-xs font-bold ml-2">✓</span>
+                    )}
+                  </button>
+                )
+              })
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
+
 // ─── Business Form Modal ──────────────────────────────────────────────────────
 
 function BusinessModal({
@@ -1322,7 +1520,7 @@ function BusinessModal({
     set('phone', clean ? `62${clean}` : '')
   }
 
-  // Duplicate / Fraud Real-time Check
+  // Duplicate Real-time Check
   const duplicateOwner = useMemo(() => {
     return checkDuplicateOwner(form, existingBusinesses, lang)
   }, [form.ownerKtp, form.accountNumber, form.phone, form.id, form.businessName, existingBusinesses, lang])
@@ -1441,14 +1639,10 @@ function BusinessModal({
       return
     }
 
-    // Auto-Fraud Assignment on duplicate owner
+    // Auto-Duplicate Assignment on duplicate owner
     let finalStatus: Status = form.status
     if (duplicateOwner.isDuplicate) {
-      finalStatus = 'Fraud'
-      alert(lang === 'id'
-        ? `⚠️ PERINGATAN FRAUD:\nData pemilik terdeteksi sama dengan bisnis lain:\n- ${duplicateOwner.reasons.join('\n- ')}\n\nStatus bisnis otomatis diset menjadi "Fraud" di CRM dan Spreadsheet.`
-        : `⚠️ FRAUD ALERT:\nDuplicate owner data detected:\n- ${duplicateOwner.reasons.join('\n- ')}\n\nBusiness status has been automatically set to "Fraud".`
-      )
+      finalStatus = 'Duplicate'
     }
 
     onSave({
@@ -1480,24 +1674,21 @@ function BusinessModal({
         </div>
 
         <form onSubmit={handleSubmit} className="flex-1 overflow-y-auto p-6 space-y-6">
-          {/* Real-time Fraud Banner */}
+          {/* Real-time Duplicate Notice */}
           {duplicateOwner.isDuplicate && (
-            <div className="p-4 bg-rose-50 border-2 border-rose-300 rounded-2xl text-rose-900 shadow-xs">
-              <div className="flex items-start gap-3">
-                <span className="text-2xl">🚨</span>
+            <div className="p-3.5 bg-amber-50 border border-amber-200 rounded-xl text-amber-900 shadow-xs">
+              <div className="flex items-start gap-2.5">
+                <span className="text-base text-amber-600">⚠️</span>
                 <div className="space-y-1">
-                  <h4 className="text-xs font-bold uppercase tracking-wider text-rose-900 font-mono">
-                    {lang === 'id' ? 'Terdeteksi Data Owner Duplikat (Potensi Fraud)' : 'Duplicate Owner Data Detected (Potential Fraud)'}
-                  </h4>
-                  <ul className="text-xs text-rose-800 list-disc list-inside space-y-0.5 font-medium">
+                  <ul className="text-xs text-amber-900 list-disc list-inside space-y-0.5 font-medium">
                     {duplicateOwner.reasons.map((r, idx) => (
                       <li key={idx}>{r}</li>
                     ))}
                   </ul>
-                  <p className="text-[11px] text-rose-700 font-semibold mt-1">
+                  <p className="text-[11px] text-amber-700 font-semibold">
                     {lang === 'id'
-                      ? 'Status bisnis ini akan otomatis ditandai sebagai "Fraud" saat disimpan.'
-                      : 'This business status will be automatically marked as "Fraud" upon saving.'}
+                      ? 'Status bisnis otomatis diset menjadi "Duplicate".'
+                      : 'Business status will be automatically set to "Duplicate".'}
                   </p>
                 </div>
               </div>
@@ -1562,7 +1753,7 @@ function BusinessModal({
                   <option value="pending">{getStatusLabel('pending', lang)}</option>
                   <option value="canceled">{getStatusLabel('canceled', lang)}</option>
                   <option value="Stopped">{getStatusLabel('Stopped', lang)}</option>
-                  <option value="Fraud">{getStatusLabel('Fraud', lang)}</option>
+                  <option value="Duplicate">{getStatusLabel('Duplicate', lang)}</option>
                 </select>
               </Field>
             </div>
@@ -1626,9 +1817,12 @@ function BusinessModal({
                 <input className="form-input" placeholder={lang === 'id' ? 'Nama sesuai rekening bank' : 'Name as registered on bank account'} value={form.accountHolderName} onChange={e => set('accountHolderName', e.target.value)} required />
               </Field>
               <Field label={t.detailBankName} required>
-                <select className="form-input font-medium" value={form.bankName} onChange={e => set('bankName', e.target.value)} required>
-                  {WISE_BANKS.map(b => <option key={b} value={b}>{b}</option>)}
-                </select>
+                <SearchableBankSelect
+                  value={form.bankName}
+                  onChange={val => set('bankName', val)}
+                  banks={WISE_BANKS}
+                  lang={lang}
+                />
               </Field>
               <Field label={t.detailAccNumber} required>
                 <input className="form-input font-mono" placeholder={lang === 'id' ? 'Nomor rekening bank' : 'Bank account number'} value={form.accountNumber} onChange={e => set('accountNumber', e.target.value.replace(/[^0-9]/g, ''))} required />
@@ -1744,15 +1938,18 @@ function DetailModal({
   b,
   lang,
   onClose,
-  onGenerateAgreement
+  onGenerateAgreement,
+  onOpenPdfModal,
 }: {
   b: Business;
   lang: Language;
   onClose: () => void;
   onGenerateAgreement?: (b: Business) => void;
+  onOpenPdfModal?: (b: Business) => void;
 }) {
   const t = TRANSLATIONS[lang]
   const [generating, setGenerating] = useState(false)
+  const downloadUrl = getPdfDownloadUrl(b.agreementLink)
 
   const handleGen = async () => {
     if (!onGenerateAgreement) return
@@ -1815,28 +2012,52 @@ function DetailModal({
                 <p className="text-[11px] text-emerald-800">
                   {lang === 'id' ? 'Dokumen resmi tersimpan dan terarsip aman di Google Drive:' : 'Official document archived safely in Google Drive:'}
                 </p>
-                <div className="flex items-center gap-2">
-                  <a
-                    href={b.agreementLink}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="flex-1 py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-2 shadow-xs transition-colors"
-                  >
-                    <IconFileText className="w-4 h-4" />
-                    <span>{lang === 'id' ? 'Buka Dokumen di Google Drive' : 'Open Document in Google Drive'}</span>
-                    <span>↗</span>
-                  </a>
-                  {onGenerateAgreement && (
-                    <button
-                      type="button"
-                      disabled={generating}
-                      onClick={handleGen}
-                      className="py-2 px-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
-                      title={lang === 'id' ? 'Generate Ulang Agreement' : 'Regenerate Agreement'}
+                <div className="flex flex-col gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    {downloadUrl && (
+                      <a
+                        href={downloadUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                        title={lang === 'id' ? 'Unduh file PDF resmi' : 'Download official PDF file'}
+                      >
+                        <IconDownload className="w-4 h-4" />
+                        <span>{lang === 'id' ? 'Unduh PDF (Drive)' : 'Download PDF'}</span>
+                      </a>
+                    )}
+                    {onOpenPdfModal && (
+                      <button
+                        type="button"
+                        onClick={() => onOpenPdfModal(b)}
+                        className="py-2 px-3 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                        title={lang === 'id' ? 'Preview & Cetak Dokumen PDF' : 'Preview & Print PDF'}
+                      >
+                        <IconPrinter className="w-4 h-4" />
+                        <span>{lang === 'id' ? 'Cetak PDF' : 'Print PDF'}</span>
+                      </button>
+                    )}
+                    <a
+                      href={b.agreementLink}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors"
                     >
-                      {generating ? '...' : (lang === 'id' ? 'Perbarui' : 'Update')}
-                    </button>
-                  )}
+                      <IconFileText className="w-4 h-4" />
+                      <span>Drive ↗</span>
+                    </a>
+                    {onGenerateAgreement && (
+                      <button
+                        type="button"
+                        disabled={generating}
+                        onClick={handleGen}
+                        className="py-2 px-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
+                        title={lang === 'id' ? 'Generate Ulang Agreement' : 'Regenerate Agreement'}
+                      >
+                        {generating ? '...' : (lang === 'id' ? 'Perbarui' : 'Update')}
+                      </button>
+                    )}
+                  </div>
                 </div>
               </div>
             ) : (
@@ -1844,17 +2065,29 @@ function DetailModal({
                 <p className="text-[11px] text-slate-600">
                   {lang === 'id' ? 'Dokumen agreement belum digenerate untuk bisnis ini.' : 'Agreement document has not been generated for this business yet.'}
                 </p>
-                {onGenerateAgreement && (
-                  <button
-                    type="button"
-                    disabled={generating}
-                    onClick={handleGen}
-                    className="w-full py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-2 shadow-xs transition-colors disabled:opacity-50"
-                  >
-                    <IconFileText className="w-4 h-4 text-emerald-400" />
-                    <span>{generating ? (lang === 'id' ? 'Membuat dokumen di Drive...' : 'Generating in Drive...') : (lang === 'id' ? 'Auto-Generate Agreement Sekarang' : 'Auto-Generate Agreement Now')}</span>
-                  </button>
-                )}
+                <div className="flex flex-col sm:flex-row gap-2">
+                  {onOpenPdfModal && (
+                    <button
+                      type="button"
+                      onClick={() => onOpenPdfModal(b)}
+                      className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
+                    >
+                      <IconPrinter className="w-4 h-4" />
+                      <span>{lang === 'id' ? 'Preview & Cetak PDF Web' : 'Preview & Print PDF'}</span>
+                    </button>
+                  )}
+                  {onGenerateAgreement && (
+                    <button
+                      type="button"
+                      disabled={generating}
+                      onClick={handleGen}
+                      className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
+                    >
+                      <IconFileText className="w-4 h-4 text-emerald-400" />
+                      <span>{generating ? '...' : (lang === 'id' ? 'Auto-Generate ke Drive' : 'Auto-Generate to Drive')}</span>
+                    </button>
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -2968,7 +3201,7 @@ function AllBusinesses({
             <option value="pending">{getStatusLabel('pending', lang)}</option>
             <option value="canceled">{getStatusLabel('canceled', lang)}</option>
             <option value="Stopped">{getStatusLabel('Stopped', lang)}</option>
-            <option value="Fraud">{getStatusLabel('Fraud', lang)}</option>
+            <option value="Duplicate">{getStatusLabel('Duplicate', lang)}</option>
           </select>
         </div>
         {(search || sdrFilter !== 'All' || statusFilter !== 'All') && (
@@ -3052,7 +3285,7 @@ function AllBusinesses({
                             <option value="pending">{getStatusLabel('pending', lang)}</option>
                             <option value="canceled">{getStatusLabel('canceled', lang)}</option>
                             <option value="Stopped">{getStatusLabel('Stopped', lang)}</option>
-                            <option value="Fraud">{getStatusLabel('Fraud', lang)}</option>
+                            <option value="Duplicate">{getStatusLabel('Duplicate', lang)}</option>
                           </select>
                         ) : (
                           <span className={`inline-flex text-[11px] font-bold font-mono px-2 py-1 rounded-lg border ${STATUS_COLORS[b.status] || STATUS_COLORS.Running}`}
@@ -5229,7 +5462,7 @@ export default function App() {
         else if (rawStatus === 'approved' || rawStatus === 'approve') normalizedStatus = 'approved'
         else if (rawStatus === 'pending') normalizedStatus = 'pending'
         else if (rawStatus === 'canceled' || rawStatus === 'cancelled' || rawStatus === 'cancel') normalizedStatus = 'canceled'
-        else if (rawStatus === 'fraud') normalizedStatus = 'Fraud'
+        else if (rawStatus === 'duplicate' || rawStatus === 'duplikat' || rawStatus === 'fraud') normalizedStatus = 'Duplicate'
 
         const rawHw = (row['Hardware'] || '').toString().trim()
         const normalizedHw = normalizeHardware(rawHw)
