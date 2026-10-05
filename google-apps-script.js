@@ -93,6 +93,41 @@ function escapeRegexForDocs(str) {
   return str.replace(/[\^$\\.*+?()[\]{}|]/g, '\\$&');
 }
 
+function applySmartReplacements(container, tagMap) {
+  if (!container) return;
+  for (var key in tagMap) {
+    var rawVal = (tagMap[key] !== undefined && tagMap[key] !== null) ? tagMap[key].toString() : '';
+    // Escape \ and $ because Java regex Matcher treats them as escape / capture group references
+    var safeVal = rawVal.replace(/\\/g, '\\\\').replace(/\$/g, '\\$');
+
+    // 1. Direct exact regex replacement
+    try {
+      container.replaceText(escapeRegexForDocs(key), safeVal);
+    } catch (e1) { }
+
+    // 2. Flexible pattern matching (handles whitespace, uppercase/lowercase, hyphens, underscores, single/double curly braces, square brackets, < >)
+    var cleanBase = key.replace(/[{}\[\]<>\s]/g, '');
+    if (cleanBase) {
+      var patternCore = cleanBase.replace(/[-_]/g, '[-_\\s]?');
+      var patterns = [
+        '(?i)\\{\\{\\s*' + patternCore + '\\s*\\}\\}',
+        '(?i)\\{\\s*' + patternCore + '\\s*\\}',
+        '(?i)\\{\\{?\\s*' + patternCore + '\\s*\\}?\\}',
+        '(?i)\\[\\[\\s*' + patternCore + '\\s*\\]\\]',
+        '(?i)\\[\\s*' + patternCore + '\\s*\\]',
+        '(?i)<<\\s*' + patternCore + '\\s*>>',
+        '(?i)<\\s*' + patternCore + '\\s*>',
+        '(?i)«\\s*' + patternCore + '\\s*»'
+      ];
+      for (var p = 0; p < patterns.length; p++) {
+        try {
+          container.replaceText(patterns[p], safeVal);
+        } catch (e2) { }
+      }
+    }
+  }
+}
+
 function generateAgreementDocument(b) {
   try {
     var folder = getOrCreateAgreementFolder();
@@ -210,29 +245,17 @@ function generateAgreementDocument(b) {
         '{{STATUS}}': b.status || 'Running'
       };
 
-      for (var key in replacements) {
-        var val = (replacements[key] !== undefined && replacements[key] !== null) ? replacements[key].toString() : '';
-        body.replaceText(escapeRegexForDocs(key), val);
-        var singleBrace = key.replace('{{', '{').replace('}}', '}');
-        if (singleBrace !== key) {
-          body.replaceText(escapeRegexForDocs(singleBrace), val);
-        }
-      }
+      // Perform robust multi-pattern replacement across Body, Header, and Footer
+      applySmartReplacements(body, replacements);
 
       try {
         var header = doc.getHeader();
         if (header) {
-          for (var hk in replacements) {
-            var hVal = (replacements[hk] !== undefined && replacements[hk] !== null) ? replacements[hk].toString() : '';
-            header.replaceText(escapeRegexForDocs(hk), hVal);
-          }
+          applySmartReplacements(header, replacements);
         }
         var footer = doc.getFooter();
         if (footer) {
-          for (var fk in replacements) {
-            var fVal = (replacements[fk] !== undefined && replacements[fk] !== null) ? replacements[fk].toString() : '';
-            footer.replaceText(escapeRegexForDocs(fk), fVal);
-          }
+          applySmartReplacements(footer, replacements);
         }
       } catch (hfErr) { }
 
