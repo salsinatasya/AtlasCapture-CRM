@@ -642,7 +642,7 @@ export function getStatusLabel(status: Status, lang: Language): string {
   }
 }
 
-export const SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbzZqmR_c-vX6_IYGgiKagSeGJCEz9lWmRbZPlsBU3u-kOzlLsGokzGLxBleM5_L3qU/exec'
+export const SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbygQKVMPhdnkmMdo1x0F8gq5VJFR-XWSNTm8RwasrPEwUeVmEC6J5RggOLMzGzPnGXx/exec'
 
 // ─── Phone & Duplicate Helpers ──────────────────────────────────────────────
 
