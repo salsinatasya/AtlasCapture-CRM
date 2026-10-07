@@ -5,6 +5,14 @@ import {
   PieChart, Pie, Cell, Legend, CartesianGrid
 } from 'recharts'
 import { Logo } from './components/Logo'
+import { AgreementModal } from './components/AgreementModal'
+import { downloadAgreementDocx } from './utils/docxGenerator'
+import {
+  initialBusinesses,
+  initialUsers,
+  rawInitialShootGroups,
+  rawInitialShootLogs
+} from './data/initialData'
 
 // ─── SVG Icons ───────────────────────────────────────────────────────────────
 
@@ -642,7 +650,7 @@ export function getStatusLabel(status: Status, lang: Language): string {
   }
 }
 
-export const SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbygQKVMPhdnkmMdo1x0F8gq5VJFR-XWSNTm8RwasrPEwUeVmEC6J5RggOLMzGzPnGXx/exec'
+export const SCRIPT_URL = import.meta.env.VITE_GOOGLE_APPS_SCRIPT_URL || 'https://script.google.com/macros/s/AKfycbxn48LaznSe2WvPeyg_Jbgo_MCLRuBRiWcWfZg1_P3T6n5VPupPdam_XGat4Gvh7LYP/exec'
 
 // ─── Phone & Duplicate Helpers ──────────────────────────────────────────────
 
@@ -708,11 +716,11 @@ export function checkDuplicateOwner(
     const bPhone = normalizePhoneNumber(b.phone || '')
 
     let matchedThis = false
-    if (cleanNik && cleanNik.length === 16 && bNik === cleanNik) {
+    if (cleanNik && cleanNik.length >= 9 && bNik === cleanNik) {
       reasons.push(
         lang === 'en'
-          ? `Data NIK (${cleanNik}) has been used in business "${b.businessName}"`
-          : `Data NIK (${cleanNik}) telah digunakan di bisnis "${b.businessName}"`
+          ? `Data Identity (${cleanNik}) has been used in business "${b.businessName}"`
+          : `Data Nomor Identitas (${cleanNik}) telah digunakan di bisnis "${b.businessName}"`
       )
       matchedThis = true
     }
@@ -762,7 +770,8 @@ export function normalizeHardware(raw?: string): Hardware {
   if (clean === 'mc') return 'MC'
   if (clean === 'mono') return 'MONO'
   if (clean === 'egoexo' || clean === 'ego' || clean === 'exo') return 'EgoExo'
-  if (clean === 'mc+mono' || clean === 'mc&mono' || clean === 'mcmono') return 'MC + MONO'
+  if (clean === 'mc+mono' || clean === 'mc&mono' || clean === 'mcmono' || clean === 'mono+mc' || clean === 'mono&mc' || clean === 'monomc') return 'MC + MONO'
+  if (clean.includes('mc') && clean.includes('mono')) return 'MC + MONO'
   if (raw.includes('MONO') || raw.includes('Mono')) return 'MONO'
   if (raw.includes('Ego')) return 'EgoExo'
   if (raw.includes('MC')) return 'MC'
@@ -949,6 +958,9 @@ const WISE_BANKS = [
   "Standard Chartered Bank"
 ]
 
+export type IdentityType = 'KTP' | 'PASSPORT' | 'SIM'
+export type SimPeriod = 'before_jul_2024' | 'jul_2024_after'
+
 export interface Business {
   id: string
   businessName: string
@@ -958,6 +970,11 @@ export interface Business {
   hardware: Hardware
   quantity: number
   rate: number
+  rateMc?: number
+  rateMono?: number
+  identityType?: IdentityType
+  simPeriod?: SimPeriod
+  simYear?: string
   accountHolderName: string
   bankName: BankName
   accountNumber: string
@@ -1118,7 +1135,9 @@ const HARDWARE_COLORS: Record<Hardware, string> = {
 
 const BLANK_FORM: Omit<Business, 'id'> = {
   businessName: '', sdrName: SDR_LIST[0], submissionDate: '', hours: 0,
-  hardware: 'MC', quantity: 1, rate: 0, accountHolderName: '', bankName: WISE_BANKS[0],
+  hardware: 'MC', quantity: 1, rate: 0, rateMc: 0, rateMono: 0,
+  identityType: 'KTP', simPeriod: 'jul_2024_after', simYear: '2025',
+  accountHolderName: '', bankName: WISE_BANKS[0],
   accountNumber: '', accountType: 'PERSON', city: '', fullAddress: '',
   postalCode: '', phone: '', email: '', ownerKtp: '', title: '', proposalLink: '',
   mouLink: '', agreementLink: '', status: 'Running', ktpPhotoUrl: '',
@@ -1284,7 +1303,7 @@ function Field({
   children,
   required = false
 }: {
-  label: string
+  label: React.ReactNode
   children: React.ReactNode
   required?: boolean
 }) {
@@ -1415,11 +1434,10 @@ function SearchableBankSelect({
                     onChange(pb)
                     setIsOpen(false)
                   }}
-                  className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${
-                    value === pb
-                      ? 'bg-blue-600 text-white border-blue-600 font-semibold'
-                      : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50'
-                  }`}
+                  className={`text-[11px] px-2 py-0.5 rounded-md border transition-colors cursor-pointer ${value === pb
+                    ? 'bg-blue-600 text-white border-blue-600 font-semibold'
+                    : 'bg-white text-slate-700 border-slate-200 hover:border-blue-400 hover:bg-blue-50/50'
+                    }`}
                 >
                   {pb.replace('Bank ', '').replace('Digital ', '')}
                 </button>
@@ -1444,11 +1462,10 @@ function SearchableBankSelect({
                       onChange(b)
                       setIsOpen(false)
                     }}
-                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors cursor-pointer ${
-                      isSelected
-                        ? 'bg-blue-50 text-blue-700 font-semibold'
-                        : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
-                    }`}
+                    className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between transition-colors cursor-pointer ${isSelected
+                      ? 'bg-blue-50 text-blue-700 font-semibold'
+                      : 'text-slate-700 hover:bg-slate-50 hover:text-slate-900'
+                      }`}
                   >
                     <span className="truncate">{b}</span>
                     {isSelected && (
@@ -1483,11 +1500,28 @@ function BusinessModal({
   onClose: () => void
 }) {
   const t = TRANSLATIONS[lang]
-  const [form, setForm] = useState(() => ({
-    ...initial,
-    title: initial.title || '',
-    phone: normalizePhoneNumber(initial.phone)
-  }))
+  const [form, setForm] = useState(() => {
+    const rawId = (initial.ownerKtp || '').trim()
+    let defIdType: IdentityType = initial.identityType || 'KTP'
+    let defSimPeriod: SimPeriod = initial.simPeriod || (rawId.length === 14 || initial.simYear === 'before_jul_2024' || initial.simYear === '2023' || initial.simYear === '2022' || initial.simYear === '2021' || initial.simYear === '2020' ? 'before_jul_2024' : 'jul_2024_after')
+    if (!initial.identityType && rawId) {
+      if (rawId.length === 9) {
+        defIdType = 'PASSPORT'
+      } else if (rawId.length === 14) {
+        defIdType = 'SIM'
+        defSimPeriod = 'before_jul_2024'
+      }
+    }
+    return {
+      ...initial,
+      title: initial.title || '',
+      phone: normalizePhoneNumber(initial.phone),
+      identityType: defIdType,
+      simPeriod: defSimPeriod,
+      rateMc: initial.rateMc !== undefined ? initial.rateMc : (initial.hardware === 'MC + MONO' ? (initial.rate || 5) : undefined),
+      rateMono: initial.rateMono !== undefined ? initial.rateMono : (initial.hardware === 'MC + MONO' ? 3 : undefined),
+    }
+  })
 
   // KTP Upload State
   const [ktpUploadBase64, setKtpUploadBase64] = useState<string | null>(null)
@@ -1499,6 +1533,9 @@ function BusinessModal({
   const originalSdrName = useRef(initial.sdrName).current
 
   const set = (key: keyof typeof form, val: any) => setForm(f => ({ ...f, [key]: val }))
+
+  const isSimOldPeriod = form.simPeriod === 'before_jul_2024' || form.simYear === 'before_jul_2024' || form.simYear === '2024_jan' || form.simYear === '2023' || form.simYear === '2022' || form.simYear === '2021' || form.simYear === '2020'
+  const expectedIdDigits = form.identityType === 'PASSPORT' ? 9 : (form.identityType === 'SIM' ? (isSimOldPeriod ? 14 : 16) : 16)
 
   // Phone helpers (+62 format)
   const getNationalPhone = (p?: string) => {
@@ -1565,9 +1602,20 @@ function BusinessModal({
       return
     }
 
-    if (!form.submissionDate || !form.hours || !form.hardware || !form.quantity || !form.rate) {
-      alert(lang === 'id' ? 'Tanggal Pengajuan, Target Jam, Tipe Hardware, Jumlah, dan Rate wajib diisi.' : 'Submission Date, Target Hours, Hardware Type, Quantity, and Rate are required.')
-      return
+    if (form.hardware === 'MC + MONO') {
+      const rMc = form.rateMc !== undefined && form.rateMc > 0 ? form.rateMc : form.rate
+      const rMono = form.rateMono !== undefined && form.rateMono > 0 ? form.rateMono : form.rate
+      if (!form.submissionDate || !form.hours || !form.quantity || !rMc || !rMono) {
+        alert(lang === 'id'
+          ? 'Tanggal Pengajuan, Target Jam, Jumlah Unit, Rate MC, dan Rate MONO wajib diisi keduanya.'
+          : 'Submission Date, Target Hours, Quantity, Rate MC, and Rate MONO are all required.')
+        return
+      }
+    } else {
+      if (!form.submissionDate || !form.hours || !form.hardware || !form.quantity || !form.rate) {
+        alert(lang === 'id' ? 'Tanggal Pengajuan, Target Jam, Tipe Hardware, Jumlah, dan Rate wajib diisi.' : 'Submission Date, Target Hours, Hardware Type, Quantity, and Rate are required.')
+        return
+      }
     }
 
     if (!form.city.trim() || !form.fullAddress.trim() || !form.phone.trim() || !form.email.trim()) {
@@ -1598,11 +1646,27 @@ function BusinessModal({
     }
 
     const cleanNik = (form.ownerKtp || '').trim()
-    if (!/^\d{16}$/.test(cleanNik)) {
-      alert(lang === 'id' ? 'NIK wajib diisi tepat 16 digit angka.' : 'NIK / ID Card Number must be exactly 16 digits.')
-      return
+    const idType = form.identityType || 'KTP'
+    if (idType === 'PASSPORT') {
+      if (!/^\d{9}$/.test(cleanNik)) {
+        alert(lang === 'id' ? 'Nomor Paspor wajib diisi tepat 9 angka.' : 'Passport Number must be exactly 9 digits.')
+        return
+      }
+    } else if (idType === 'SIM') {
+      if (cleanNik.length !== expectedIdDigits || !/^\d+$/.test(cleanNik)) {
+        alert(lang === 'id'
+          ? `Nomor SIM untuk periode ${isSimOldPeriod ? 'sebelum Juli 2024' : 'Juli 2024 ke atas'} wajib tepat ${expectedIdDigits} digit angka.`
+          : `SIM Number for the selected period must be exactly ${expectedIdDigits} digits.`)
+        return
+      }
+    } else {
+      if (!/^\d{16}$/.test(cleanNik)) {
+        alert(lang === 'id' ? 'NIK KTP wajib diisi tepat 16 digit angka.' : 'NIK / ID Card Number must be exactly 16 digits.')
+        return
+      }
     }
 
+    const docPrefix = idType === 'PASSPORT' ? 'PASPOR' : idType === 'SIM' ? 'SIM' : 'KTP'
     let finalKtpUrl = form.ktpPhotoUrl || ''
 
     if (ktpUploadBase64 && ktpUploadMime) {
@@ -1610,14 +1674,15 @@ function BusinessModal({
       const scriptUrl = SCRIPT_URL
       if (scriptUrl) {
         try {
-          const cleanBiz = form.businessName.replace(/[^a-zA-Z0-9]/g, '_')
+          const bizNameForDrive = form.businessName.trim()
           const uploadRes = await fetch(scriptUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'text/plain;charset=utf-8' },
             body: JSON.stringify({
               action: 'upload_file',
               folderType: 'ktp',
-              fileName: `KTP_${cleanBiz}_${cleanNik}_${Date.now()}`,
+              fileName: bizNameForDrive,
+              businessName: bizNameForDrive,
               mimeType: ktpUploadMime,
               fileData: ktpUploadBase64
             })
@@ -1627,15 +1692,15 @@ function BusinessModal({
             finalKtpUrl = uploadData.directUrl || uploadData.url
           }
         } catch (uErr) {
-          console.error("KTP upload error:", uErr)
+          console.error("Identity upload error:", uErr)
         }
       }
       setIsUploadingKtp(false)
     }
 
-    // Mandatory KTP photo check
+    // Mandatory identity photo check
     if (!finalKtpUrl && !ktpUploadBase64) {
-      alert(lang === 'id' ? 'Foto KTP Pemilik Bisnis wajib diunggah.' : 'Business Owner KTP Photo is required.')
+      alert(lang === 'id' ? `Foto ${docPrefix} Pemilik Bisnis wajib diunggah.` : `Business Owner ${docPrefix} Photo is required.`)
       return
     }
 
@@ -1645,8 +1710,15 @@ function BusinessModal({
       finalStatus = 'Duplicate'
     }
 
+    const effectiveRate = form.hardware === 'MC + MONO' ? (form.rateMc || form.rate || 5) : form.rate
     onSave({
       ...form,
+      rate: effectiveRate,
+      rateMc: form.hardware === 'MC + MONO' ? (form.rateMc || 5) : (form.hardware === 'MC' ? form.rate : undefined),
+      rateMono: form.hardware === 'MC + MONO' ? (form.rateMono || 3) : (form.hardware === 'MONO' ? form.rate : undefined),
+      identityType: idType,
+      simPeriod: isSimOldPeriod ? 'before_jul_2024' : 'jul_2024_after',
+      simYear: isSimOldPeriod ? 'before_jul_2024' : 'jul_2024_after',
       title: form.title.trim(),
       phone: cleanPhone,
       status: finalStatus,
@@ -1729,8 +1801,20 @@ function BusinessModal({
                 <input type="date" className="form-input font-mono" value={form.submissionDate} onChange={e => set('submissionDate', e.target.value)} required />
               </Field>
               <Field label={t.thHardware} required>
-                <select className="form-input font-medium" value={form.hardware} onChange={e => set('hardware', e.target.value as Hardware)} required>
-                  {(['MC', 'MONO', 'EgoExo', 'MC + MONO'] as Hardware[]).map(h => <option key={h} value={h}>{h}</option>)}
+                <select
+                  className="form-input font-medium"
+                  value={form.hardware}
+                  onChange={e => {
+                    const nextHw = e.target.value as Hardware
+                    set('hardware', nextHw)
+                    if (nextHw === 'MC + MONO') {
+                      if (!form.rateMc) set('rateMc', 5)
+                      if (!form.rateMono) set('rateMono', 3)
+                    }
+                  }}
+                  required
+                >
+                  {(['MC', 'MONO', 'EgoExo', 'MC + MONO'] as Hardware[]).map(h => <option key={h} value={h}>{h === 'MC + MONO' ? 'MC + MONO (Mono + MC)' : h}</option>)}
                 </select>
               </Field>
               <Field label={t.thHours} required>
@@ -1739,9 +1823,78 @@ function BusinessModal({
               <Field label={lang === 'id' ? 'Jumlah Unit Kit' : 'Kit Quantity'} required>
                 <input type="number" min="1" className="form-input font-mono" placeholder={lang === 'id' ? 'Jumlah unit kit' : 'Kit quantity'} value={form.quantity || ''} onChange={e => set('quantity', parseInt(e.target.value) || 0)} required />
               </Field>
-              <Field label={t.thRate} required>
-                <input type="number" min="0" step="any" className="form-input font-mono" placeholder={lang === 'id' ? 'Rate $/jam (contoh: 5 atau 6)' : 'Rate $/hour (e.g. 5 or 6)'} value={form.rate || ''} onChange={e => set('rate', parseFloat(e.target.value) || 0)} required />
-              </Field>
+              {form.hardware === 'MC + MONO' ? (
+                <div className="sm:col-span-2 grid grid-cols-1 sm:grid-cols-2 gap-4 p-3.5 bg-sky-50/80 border border-sky-200 rounded-xl">
+                  <Field
+                    label={
+                      <div className="flex items-center justify-between w-full">
+                        <span className="font-semibold text-blue-900">{lang === 'id' ? 'Rate Kit MC ($/jam)' : 'Rate Kit MC ($/hr)'}</span>
+                        <span className="text-[10px] font-mono bg-blue-100 text-blue-800 px-1.5 py-0.5 rounded font-bold">Multicam</span>
+                      </div>
+                    }
+                    required
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="form-input font-mono bg-white border-blue-300 focus:border-blue-600"
+                      placeholder={lang === 'id' ? 'Rate MC $/jam (contoh: 6)' : 'Rate MC $/hr (e.g. 6)'}
+                      value={form.rateMc !== undefined ? form.rateMc : (form.rate || '')}
+                      onChange={e => {
+                        const val = parseFloat(e.target.value) || 0
+                        set('rateMc', val)
+                        set('rate', val)
+                      }}
+                      required
+                    />
+                    <p className="text-[10px] text-blue-600 font-mono mt-1">
+                      {lang === 'id' ? 'Tarif per jam untuk unit Multicam (MC)' : 'Hourly rate for Multicam (MC) kit'}
+                    </p>
+                  </Field>
+                  <Field
+                    label={
+                      <div className="flex items-center justify-between w-full">
+                        <span className="font-semibold text-emerald-900">{lang === 'id' ? 'Rate Kit MONO ($/jam)' : 'Rate Kit MONO ($/hr)'}</span>
+                        <span className="text-[10px] font-mono bg-emerald-100 text-emerald-800 px-1.5 py-0.5 rounded font-bold">Single-Cam</span>
+                      </div>
+                    }
+                    required
+                  >
+                    <input
+                      type="number"
+                      min="0"
+                      step="any"
+                      className="form-input font-mono bg-white border-emerald-300 focus:border-emerald-600"
+                      placeholder={lang === 'id' ? 'Rate MONO $/jam (contoh: 5)' : 'Rate MONO $/hr (e.g. 5)'}
+                      value={form.rateMono !== undefined ? form.rateMono : (form.rate || '')}
+                      onChange={e => set('rateMono', parseFloat(e.target.value) || 0)}
+                      required
+                    />
+                    <p className="text-[10px] text-emerald-600 font-mono mt-1">
+                      {lang === 'id' ? 'Tarif per jam untuk unit Single-Camera (MONO)' : 'Hourly rate for Single-Camera (MONO) kit'}
+                    </p>
+                  </Field>
+                </div>
+              ) : (
+                <Field label={t.thRate} required>
+                  <input
+                    type="number"
+                    min="0"
+                    step="any"
+                    className="form-input font-mono"
+                    placeholder={lang === 'id' ? 'Rate $/jam (contoh: 5 atau 6)' : 'Rate $/hour (e.g. 5 or 6)'}
+                    value={form.rate || ''}
+                    onChange={e => {
+                      const val = parseFloat(e.target.value) || 0
+                      set('rate', val)
+                      if (form.hardware === 'MC') set('rateMc', val)
+                      if (form.hardware === 'MONO') set('rateMono', val)
+                    }}
+                    required
+                  />
+                </Field>
+              )}
               <Field label={t.detailStatus || 'Status Bisnis'}>
                 <select
                   className={`form-input font-bold font-mono ${STATUS_COLORS[form.status] || STATUS_COLORS.Running}`}
@@ -1769,7 +1922,7 @@ function BusinessModal({
               <Field label={lang === 'id' ? 'Kode Pos (5 Digit)' : 'Postal Code (5 Digits)'} required>
                 <input
                   className="form-input font-mono"
-                  placeholder={lang === 'id' ? 'Contoh: 15151' : 'Example: 15151'}
+                  placeholder={lang === 'id' ? '15151' : '15151'}
                   maxLength={5}
                   minLength={5}
                   pattern="[0-9]{5}"
@@ -1836,36 +1989,166 @@ function BusinessModal({
             </div>
           </div>
 
-          {/* Section 4: NIK, Title & KTP Identity */}
+          {/* Section 4: NIK, Title & Identity */}
           <div>
             <h3 className="text-xs font-bold text-slate-900 uppercase tracking-wider mb-3 font-mono border-b pb-1 border-slate-100">
-              {lang === 'id' ? 'Identitas & Jabatan Pemilik (Agreement & NIK)' : 'Business Owner Identity & Title (Agreement & NIK)'}
+              {lang === 'id' ? 'Identitas & Jabatan Pemilik' : 'Owner Identity & Title'}
             </h3>
             <div className="space-y-4">
-              <Field label={lang === 'id' ? 'Jabatan / Title Pemilik' : 'Owner Title / Position'} required>
+              <Field label={lang === 'id' ? 'Jabatan / Title' : 'Title / Position'} required>
                 <input
                   className="form-input"
-                  placeholder={lang === 'id' ? 'Contoh: Owner of Atlas Capture' : 'Example: Owner of Atlas Capture'}
+                  placeholder={lang === 'id' ? 'Owner / Direktur' : 'Owner / Director'}
                   value={form.title}
                   onChange={e => set('title', e.target.value)}
                   required
                 />
               </Field>
 
-              <Field label={lang === 'id' ? 'NIK Pemilik Bisnis (16 Digit Angka)' : 'Owner NIK (16 Digits Number)'} required>
+              {/* Pilihan Jenis Dokumen Identitas */}
+              <Field label={lang === 'id' ? 'Pilihan Jenis Dokumen Identitas' : 'Identity Document Type'} required>
+                <div className="grid grid-cols-3 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      set('identityType', 'KTP')
+                      set('ownerKtp', (form.ownerKtp || '').slice(0, 16))
+                    }}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
+                      (form.identityType || 'KTP') === 'KTP'
+                        ? 'bg-blue-50 border-blue-600 text-blue-900 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="font-bold">KTP</span>
+                    <span className="text-[10px] font-mono font-normal opacity-75">16 Digit</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      set('identityType', 'PASSPORT')
+                      set('ownerKtp', (form.ownerKtp || '').slice(0, 9))
+                    }}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
+                      form.identityType === 'PASSPORT'
+                        ? 'bg-blue-50 border-blue-600 text-blue-900 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="font-bold">{lang === 'id' ? 'Paspor' : 'Passport'}</span>
+                    <span className="text-[10px] font-mono font-normal opacity-75">9 Digit Angka</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      set('identityType', 'SIM')
+                      const isOld = form.simPeriod === 'before_jul_2024' || form.simYear === 'before_jul_2024' || form.simYear === '2024_jan' || form.simYear === '2023' || form.simYear === '2022' || form.simYear === '2021' || form.simYear === '2020'
+                      set('ownerKtp', (form.ownerKtp || '').slice(0, isOld ? 14 : 16))
+                    }}
+                    className={`py-2.5 px-3 rounded-xl text-xs font-semibold flex flex-col items-center justify-center gap-1 border transition-all cursor-pointer ${
+                      form.identityType === 'SIM'
+                        ? 'bg-blue-50 border-blue-600 text-blue-900 ring-2 ring-blue-500/20 shadow-xs'
+                        : 'bg-white border-slate-200 text-slate-600 hover:bg-slate-50'
+                    }`}
+                  >
+                    <span className="font-bold">{lang === 'id' ? 'SIM / Driver License' : 'Driver License'}</span>
+                    <span className="text-[10px] font-mono font-normal opacity-75">14 / 16 Digit</span>
+                  </button>
+                </div>
+              </Field>
+
+              {/* Jika SIM: Pilihan Periode Penerbitan SIM */}
+              {form.identityType === 'SIM' && (
+                <div className="p-3 bg-slate-50 border border-slate-200 rounded-xl space-y-2">
+                  <Field label={lang === 'id' ? 'Pilihan Periode SIM / Driver License' : 'Driver License Issuance Period'} required>
+                    <select
+                      className="form-input font-medium bg-white"
+                      value={isSimOldPeriod ? 'before_jul_2024' : 'jul_2024_after'}
+                      onChange={e => {
+                        const yr = e.target.value as SimPeriod
+                        set('simPeriod', yr)
+                        set('simYear', yr)
+                        const isOld = yr === 'before_jul_2024'
+                        set('ownerKtp', (form.ownerKtp || '').slice(0, isOld ? 14 : 16))
+                      }}
+                      required
+                    >
+                      <option value="before_jul_2024">
+                        Before July 2024 (14 Digits)
+                      </option>
+                      <option value="jul_2024_after">
+                        July 2024 onwards (16 Digits)
+                      </option>
+                    </select>
+                  </Field>
+                  <p className="text-[11px] text-slate-600">
+                    {isSimOldPeriod
+                      ? (lang === 'id'
+                        ? 'SIM sebelum Juli 2024 menggunakan nomor seri standar: 14 digit angka.'
+                        : 'Driver License issued before July 2024 uses 14 numeric digits.')
+                      : (lang === 'id'
+                        ? 'SIM Juli 2024 dst menggunakan 16 digit NIK.'
+                        : 'Driver License issued July 2024 onwards uses 16 digits (NIK).')}
+                  </p>
+                </div>
+              )}
+
+              {/* Input Nomor Identitas dengan Live Counter */}
+              <Field
+                label={
+                  <div className="flex items-center justify-between w-full">
+                    <span>
+                      {form.identityType === 'PASSPORT'
+                        ? (lang === 'id' ? 'Nomor Paspor (9 Digit Angka)' : 'Passport Number (9 Digits)')
+                        : form.identityType === 'SIM'
+                        ? (lang === 'id' ? `Nomor SIM (${expectedIdDigits} Digit Angka)` : `SIM Number (${expectedIdDigits} Digits)`)
+                        : (lang === 'id' ? 'NIK / Nomor KTP (16 Digit)' : 'NIK / ID Card Number (16 Digits)')}
+                    </span>
+                    <span
+                      className={`text-[10px] font-mono px-2 py-0.5 rounded-full font-bold border transition-colors ${
+                        (form.ownerKtp || '').length === expectedIdDigits
+                          ? 'bg-emerald-50 text-emerald-700 border-emerald-300'
+                          : 'bg-slate-100 text-slate-600 border-slate-200'
+                      }`}
+                    >
+                      {(form.ownerKtp || '').length === expectedIdDigits
+                        ? `✓ ${(form.ownerKtp || '').length}/${expectedIdDigits} digit`
+                        : `${(form.ownerKtp || '').length}/${expectedIdDigits} digit`}
+                    </span>
+                  </div>
+                }
+                required
+              >
                 <input
                   className="form-input font-mono tracking-wider"
-                  placeholder={lang === 'id' ? 'Contoh: 3671120910910005' : 'Example: 3671120910910005'}
-                  maxLength={16}
-                  minLength={16}
-                  pattern="[0-9]{16}"
+                  placeholder={
+                    form.identityType === 'PASSPORT'
+                      ? (lang === 'id' ? 'Contoh: 123456789 (9 angka)' : 'e.g. 123456789 (9 digits)')
+                      : form.identityType === 'SIM'
+                      ? (expectedIdDigits === 16
+                        ? (lang === 'id' ? 'Contoh: 3671120910910005 (16 digit NIK)' : 'e.g. 3671120910910005 (16 digits)')
+                        : (lang === 'id' ? 'Contoh: 91101234567890 (14 digit)' : 'e.g. 91101234567890 (14 digits)'))
+                      : (lang === 'id' ? 'Contoh: 3671120910910005 (16 digit)' : 'e.g. 3671120910910005 (16 digits)')
+                  }
+                  maxLength={expectedIdDigits}
+                  minLength={expectedIdDigits}
                   value={form.ownerKtp}
-                  onChange={e => set('ownerKtp', e.target.value.replace(/[^0-9]/g, '').slice(0, 16))}
+                  onChange={e => set('ownerKtp', e.target.value.replace(/[^0-9]/g, '').slice(0, expectedIdDigits))}
                   required
                 />
               </Field>
 
-              <Field label={lang === 'id' ? 'Foto KTP Pemilik Bisnis (Wajib)' : 'Owner KTP Photo (Required)'} required>
+              {/* Upload Foto Identitas */}
+              <Field
+                label={
+                  lang === 'id'
+                    ? (form.identityType === 'PASSPORT' ? 'Foto Paspor' : form.identityType === 'SIM' ? 'Foto SIM' : 'Foto KTP')
+                    : (form.identityType === 'PASSPORT' ? 'Passport Photo' : form.identityType === 'SIM' ? 'SIM Photo' : 'KTP Photo')
+                }
+                required
+              >
                 <div className="space-y-2">
                   <div className="flex items-center gap-3">
                     <input
@@ -1878,19 +2161,27 @@ function BusinessModal({
                     <button
                       type="button"
                       onClick={() => ktpFileInputRef.current?.click()}
-                      className="px-3.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-300 rounded-xl hover:bg-slate-200 transition-colors"
+                      className="px-3.5 py-1.5 text-xs font-semibold bg-slate-100 text-slate-800 border border-slate-300 rounded-xl hover:bg-slate-200 transition-colors cursor-pointer"
                     >
-                      {ktpUploadBase64 ? (lang === 'id' ? 'Ganti Foto KTP' : 'Change KTP Photo') : (lang === 'id' ? 'Pilih Foto KTP' : 'Choose KTP Photo')}
+                      {ktpUploadBase64
+                        ? (lang === 'id'
+                          ? `Ganti Foto ${form.identityType === 'PASSPORT' ? 'Paspor' : form.identityType === 'SIM' ? 'SIM' : 'KTP'}`
+                          : `Change ${form.identityType === 'PASSPORT' ? 'Passport' : form.identityType === 'SIM' ? 'SIM' : 'KTP'} Photo`)
+                        : (lang === 'id'
+                          ? `Pilih Foto ${form.identityType === 'PASSPORT' ? 'Paspor' : form.identityType === 'SIM' ? 'SIM' : 'KTP'}`
+                          : `Choose ${form.identityType === 'PASSPORT' ? 'Passport' : form.identityType === 'SIM' ? 'SIM' : 'KTP'} Photo`)}
                     </button>
                     <span className="text-xs text-slate-500 font-mono truncate">
-                      {ktpUploadBase64 ? (lang === 'id' ? '✓ File KTP siap diunggah' : '✓ KTP file ready to upload') : (form.ktpPhotoUrl ? (lang === 'id' ? '✓ Foto KTP tersimpan' : '✓ KTP photo saved') : (lang === 'id' ? 'Belum ada file dipilih' : 'No file chosen'))}
+                      {ktpUploadBase64
+                        ? (lang === 'id' ? '✓ File identitas siap diunggah' : '✓ ID file ready to upload')
+                        : (form.ktpPhotoUrl ? (lang === 'id' ? '✓ Foto identitas tersimpan' : '✓ ID photo saved') : (lang === 'id' ? 'Belum ada file dipilih' : 'No file chosen'))}
                     </span>
                   </div>
                   {form.ktpPhotoUrl && (
                     <div className="relative w-44 h-28 rounded-xl overflow-hidden border border-slate-200 bg-slate-50 shadow-2xs">
                       <img
                         src={getDirectImageUrl(form.ktpPhotoUrl)}
-                        alt="Preview KTP"
+                        alt="Preview Identitas"
                         className="w-full h-full object-cover"
                         onError={(e) => { (e.currentTarget as HTMLElement).style.display = 'none' }}
                       />
@@ -1910,8 +2201,8 @@ function BusinessModal({
               </p>
               <p className="text-[11px] text-emerald-800 mt-0.5">
                 {lang === 'id'
-                  ? 'Saat formulir ini disimpan, dokumen Agreement resmi akan otomatis dibuat dan diarsipkan langsung ke folder Google Drive.'
-                  : 'When this form is saved, an official Agreement document will be automatically generated and archived directly into Google Drive.'}
+                  ? 'Saat formulir ini disimpan, dokumen Agreement resmi akan otomatis dibuat dan diarsipkan.'
+                  : 'When this form is saved, an official Agreement document will be automatically generated and archived.'}
               </p>
             </div>
           </div>
@@ -1939,16 +2230,17 @@ function DetailModal({
   lang,
   onClose,
   onGenerateAgreement,
-  onOpenPdfModal,
+  onOpenAgreementModal,
 }: {
   b: Business;
   lang: Language;
   onClose: () => void;
   onGenerateAgreement?: (b: Business) => void;
-  onOpenPdfModal?: (b: Business) => void;
+  onOpenAgreementModal?: (b: Business) => void;
 }) {
   const t = TRANSLATIONS[lang]
   const [generating, setGenerating] = useState(false)
+  const [downloadingDocx, setDownloadingDocx] = useState(false)
   const downloadUrl = getPdfDownloadUrl(b.agreementLink)
 
   const handleGen = async () => {
@@ -1958,6 +2250,17 @@ function DetailModal({
       await onGenerateAgreement(b)
     } finally {
       setGenerating(false)
+    }
+  }
+
+  const handleDownloadWord = async () => {
+    setDownloadingDocx(true)
+    try {
+      await downloadAgreementDocx(b)
+    } catch (err: any) {
+      alert(lang === 'id' ? `Gagal mengunduh file Word: ${err?.message || err}` : `Failed to download Word doc: ${err?.message || err}`)
+    } finally {
+      setDownloadingDocx(false)
     }
   }
 
@@ -1991,105 +2294,107 @@ function DetailModal({
             </div>
             <div>
               <p className="text-slate-400">{t.detailTargetRate}</p>
-              <p className="font-semibold text-slate-900">{b.hours} hrs · ${b.rate}/hr</p>
+              {b.hardware === 'MC + MONO' && (b.rateMc || b.rateMono) ? (
+                <div className="font-semibold text-slate-900">
+                  <p>{b.hours} hrs</p>
+                  <p className="text-[11px] text-blue-700 font-mono">Rate MC: ${b.rateMc || b.rate}/hr</p>
+                  <p className="text-[11px] text-emerald-700 font-mono">Rate MONO: ${b.rateMono || b.rate}/hr</p>
+                </div>
+              ) : (
+                <p className="font-semibold text-slate-900">{b.hours} hrs · ${b.rate}/hr</p>
+              )}
             </div>
           </div>
 
           {/* Agreement & Drive Archive Section */}
-          <div className="p-4 bg-emerald-50/70 rounded-xl border border-emerald-200 space-y-2.5">
+          <div className="p-4 bg-blue-50/70 rounded-xl border border-blue-200 space-y-2.5">
             <div className="flex items-center justify-between">
-              <span className="font-bold text-emerald-950 uppercase tracking-wider text-[11px] font-mono flex items-center gap-1.5">
-                <IconFileText className="w-4 h-4 text-emerald-600" />
+              <span className="font-bold text-blue-950 uppercase tracking-wider text-[11px] font-mono flex items-center gap-1.5">
+                <IconFileText className="w-4 h-4 text-blue-600" />
                 {lang === 'id' ? 'Dokumen Agreement Kerjasama' : 'Partnership Agreement Document'}
               </span>
-              <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-emerald-100 text-emerald-800">
-                Google Drive
+              <span className="px-2 py-0.5 rounded text-[10px] font-bold font-mono bg-blue-100 text-blue-800">
+                Word .docx & PDF
               </span>
             </div>
 
-            {b.agreementLink ? (
-              <div className="space-y-2 pt-1">
-                <p className="text-[11px] text-emerald-800">
-                  {lang === 'id' ? 'Dokumen resmi tersimpan dan terarsip aman di Google Drive:' : 'Official document archived safely in Google Drive:'}
-                </p>
-                <div className="flex flex-col gap-2">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    {downloadUrl && (
+            <p className="text-[11px] text-slate-600">
+              {lang === 'id'
+                ? 'Template resmi terisi otomatis dengan data bisnis, PIC, target jam, dan unit.'
+                : 'Official agreement populated automatically with business info, PIC, hours target, and units.'}
+            </p>
+
+            <div className="space-y-2 pt-1">
+              <div className="flex items-center gap-2 flex-wrap">
+                {/* Download Word .docx */}
+                <button
+                  type="button"
+                  disabled={downloadingDocx}
+                  onClick={handleDownloadWord}
+                  className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 active:bg-blue-800 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  title={lang === 'id' ? 'Unduh file Word (.docx) terisi otomatis' : 'Download populated Word (.docx) document'}
+                >
+                  <IconDownload className="w-4 h-4" />
+                  <span>{downloadingDocx ? (lang === 'id' ? 'Mengunduh...' : 'Downloading...') : (b.hardware === 'MC + MONO' ? (lang === 'id' ? 'Unduh 2 Word (.docx)' : 'Download Both .docx') : (lang === 'id' ? 'Unduh Word (.docx)' : 'Download .docx'))}</span>
+                </button>
+
+                {/* Open preview / print modal */}
+                {onOpenAgreementModal && (
+                  <button
+                    type="button"
+                    onClick={() => onOpenAgreementModal(b)}
+                    className="py-2 px-3 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
+                    title={lang === 'id' ? 'Pratinjau bilingual dan cetak PDF' : 'Bilingual preview & print PDF'}
+                  >
+                    <IconPrinter className="w-4 h-4" />
+                    <span>{lang === 'id' ? 'Lihat & Cetak' : 'Preview & Print'}</span>
+                  </button>
+                )}
+
+                {/* Google Drive Link if exists */}
+                {b.agreementLink && (
+                  b.agreementLink.includes('\n') ? (
+                    b.agreementLink.split('\n').filter(Boolean).map((link, idx) => (
                       <a
-                        href={downloadUrl}
+                        key={idx}
+                        href={link.trim()}
                         target="_blank"
                         rel="noreferrer"
-                        className="flex-1 py-2 px-3 bg-blue-600 hover:bg-blue-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors"
-                        title={lang === 'id' ? 'Unduh file PDF resmi' : 'Download official PDF file'}
+                        className="py-2 px-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1 shadow-xs transition-colors"
+                        title={lang === 'id' ? `Buka arsip ${idx === 0 ? 'MC' : 'MONO'} di Google Drive` : `Open ${idx === 0 ? 'MC' : 'MONO'} doc in Drive`}
                       >
-                        <IconDownload className="w-4 h-4" />
-                        <span>{lang === 'id' ? 'Unduh PDF (Drive)' : 'Download PDF'}</span>
+                        <IconFileText className="w-3.5 h-3.5" />
+                        <span>Drive {idx === 0 ? 'MC' : 'MONO'} ↗</span>
                       </a>
-                    )}
-                    {onOpenPdfModal && (
-                      <button
-                        type="button"
-                        onClick={() => onOpenPdfModal(b)}
-                        className="py-2 px-3 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 transition-colors cursor-pointer"
-                        title={lang === 'id' ? 'Preview & Cetak Dokumen PDF' : 'Preview & Print PDF'}
-                      >
-                        <IconPrinter className="w-4 h-4" />
-                        <span>{lang === 'id' ? 'Cetak PDF' : 'Print PDF'}</span>
-                      </button>
-                    )}
+                    ))
+                  ) : (
                     <a
                       href={b.agreementLink}
                       target="_blank"
                       rel="noreferrer"
                       className="py-2 px-3 bg-emerald-600 hover:bg-emerald-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors"
+                      title={lang === 'id' ? 'Buka arsip di Google Drive' : 'Open in Google Drive'}
                     >
                       <IconFileText className="w-4 h-4" />
                       <span>Drive ↗</span>
                     </a>
-                    {onGenerateAgreement && (
-                      <button
-                        type="button"
-                        disabled={generating}
-                        onClick={handleGen}
-                        className="py-2 px-3 bg-white border border-emerald-300 text-emerald-700 hover:bg-emerald-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50"
-                        title={lang === 'id' ? 'Generate Ulang Agreement' : 'Regenerate Agreement'}
-                      >
-                        {generating ? '...' : (lang === 'id' ? 'Perbarui' : 'Update')}
-                      </button>
-                    )}
-                  </div>
-                </div>
+                  )
+                )}
+
+                {/* Sync to Drive */}
+                {onGenerateAgreement && (
+                  <button
+                    type="button"
+                    disabled={generating}
+                    onClick={handleGen}
+                    className="py-2 px-2.5 bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 rounded-lg text-xs font-semibold transition-colors disabled:opacity-50 cursor-pointer"
+                    title={lang === 'id' ? 'Simpan / Perbarui salinan ke Google Drive' : 'Sync / Update copy in Google Drive'}
+                  >
+                    {generating ? '...' : (b.agreementLink ? (lang === 'id' ? 'Perbarui Drive' : 'Update Drive') : (lang === 'id' ? '+ Ke Drive' : '+ To Drive'))}
+                  </button>
+                )}
               </div>
-            ) : (
-              <div className="space-y-2 pt-1">
-                <p className="text-[11px] text-slate-600">
-                  {lang === 'id' ? 'Dokumen agreement belum digenerate untuk bisnis ini.' : 'Agreement document has not been generated for this business yet.'}
-                </p>
-                <div className="flex flex-col sm:flex-row gap-2">
-                  {onOpenPdfModal && (
-                    <button
-                      type="button"
-                      onClick={() => onOpenPdfModal(b)}
-                      className="flex-1 py-2 px-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors cursor-pointer"
-                    >
-                      <IconPrinter className="w-4 h-4" />
-                      <span>{lang === 'id' ? 'Preview & Cetak PDF Web' : 'Preview & Print PDF'}</span>
-                    </button>
-                  )}
-                  {onGenerateAgreement && (
-                    <button
-                      type="button"
-                      disabled={generating}
-                      onClick={handleGen}
-                      className="py-2 px-3 bg-slate-900 hover:bg-slate-800 text-white rounded-lg text-xs font-semibold inline-flex items-center justify-center gap-1.5 shadow-xs transition-colors disabled:opacity-50 cursor-pointer"
-                    >
-                      <IconFileText className="w-4 h-4 text-emerald-400" />
-                      <span>{generating ? '...' : (lang === 'id' ? 'Auto-Generate ke Drive' : 'Auto-Generate to Drive')}</span>
-                    </button>
-                  )}
-                </div>
-              </div>
-            )}
+            </div>
           </div>
 
           {/* Shoot Report Activity Highlight */}
@@ -2152,13 +2457,25 @@ function DetailModal({
             <p className="text-slate-600"><strong>{t.detailAccNumber}:</strong> {b.accountNumber || '—'}</p>
             <p className="text-slate-600"><strong>{t.detailAccHolder}:</strong> {b.accountHolderName || '—'}</p>
             <p className="text-slate-600"><strong>{lang === 'id' ? 'Jabatan / Title' : 'Title / Position'}:</strong> {b.title || '—'}</p>
+            <p className="text-slate-600">
+              <strong>
+                {b.identityType === 'PASSPORT'
+                  ? (lang === 'id' ? 'Nomor Paspor (9 digit)' : 'Passport No. (9 digits)')
+                  : b.identityType === 'SIM'
+                  ? (lang === 'id' ? `Nomor SIM (${b.simYear ? (b.simYear.includes('jan') || ['2023','2022','2021','2020'].includes(b.simYear) ? '14 digit' : '16 digit') : (b.ownerKtp.length === 14 ? '14 digit' : '16 digit')})` : `SIM No. (${b.ownerKtp.length} digits)`)
+                  : (lang === 'id' ? 'NIK / Nomor KTP (16 digit)' : 'NIK / KTP No. (16 digits)')}:
+              </strong>{' '}
+              <span className="font-mono font-semibold text-slate-900">{b.ownerKtp || '—'}</span>
+            </p>
           </div>
 
           {b.ktpPhotoUrl && (
             <div className="space-y-2">
-              <p className="font-bold text-slate-800 uppercase font-mono tracking-wider">{t.detailOwnerKtp}</p>
+              <p className="font-bold text-slate-800 uppercase font-mono tracking-wider">
+                {b.identityType === 'PASSPORT' ? 'Dokumen Paspor Pemilik' : b.identityType === 'SIM' ? 'Dokumen SIM Pemilik' : t.detailOwnerKtp}
+              </p>
               <a href={b.ktpPhotoUrl} target="_blank" rel="noreferrer" className="text-indigo-600 hover:underline font-mono inline-block">
-                {t.detailViewKtp}
+                {lang === 'id' ? `Lihat Foto ${b.identityType === 'PASSPORT' ? 'Paspor' : b.identityType === 'SIM' ? 'SIM' : 'KTP'} ↗` : t.detailViewKtp}
               </a>
             </div>
           )}
@@ -3126,6 +3443,7 @@ function AllBusinesses({
   onSyncShootStatus,
   isSyncingShootStatus,
   onGenerateAgreement,
+  onOpenAgreementModal,
 }: {
   businesses: Business[]
   user: User
@@ -3138,6 +3456,7 @@ function AllBusinesses({
   onSyncShootStatus: () => void
   isSyncingShootStatus: boolean
   onGenerateAgreement?: (b: Business) => void
+  onOpenAgreementModal?: (b: Business) => void
 }) {
   const t = TRANSLATIONS[lang]
   const [search, setSearch] = useState('')
@@ -3256,7 +3575,16 @@ function AllBusinesses({
                           {b.hardware}
                         </span>
                       </td>
-                      <td className="px-5 py-3.5 font-mono text-slate-700">${b.rate}/hr</td>
+                      <td className="px-5 py-3.5 font-mono text-slate-700">
+                        {b.hardware === 'MC + MONO' && (b.rateMc || b.rateMono) ? (
+                          <div className="flex flex-col text-[11px] leading-tight font-medium">
+                            <span className="text-blue-700 font-semibold">MC: ${b.rateMc || b.rate}/hr</span>
+                            <span className="text-emerald-700 font-semibold">MONO: ${b.rateMono || b.rate}/hr</span>
+                          </div>
+                        ) : (
+                          `$${b.rate}/hr`
+                        )}
+                      </td>
                       <td className="px-5 py-3.5 text-slate-500">{b.city || '—'}</td>
 
                       {/* Shoot Progress Badge */}
@@ -3305,26 +3633,40 @@ function AllBusinesses({
                               Edit
                             </button>
                           )}
-                          {b.agreementLink ? (
-                            <a
-                              href={b.agreementLink}
-                              target="_blank"
-                              rel="noreferrer"
-                              className="px-2.5 py-1 text-[11px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md inline-flex items-center gap-1"
-                              title={lang === 'id' ? 'Buka Dokumen Agreement di Google Drive' : 'Open Agreement in Google Drive'}
-                            >
-                              <span>Agreement</span>
-                              <span className="text-[10px]">↗</span>
-                            </a>
-                          ) : (
-                            <button
-                              type="button"
-                              onClick={() => onGenerateAgreement && onGenerateAgreement(b)}
-                              className="px-2 py-1 text-[10px] font-medium bg-slate-100 text-slate-600 hover:bg-slate-200 rounded-md inline-flex items-center gap-1"
-                              title={lang === 'id' ? 'Auto-Generate Agreement ke Drive' : 'Auto-Generate Agreement to Drive'}
-                            >
-                              <span>+ Agreement</span>
-                            </button>
+                          <button
+                            type="button"
+                            onClick={() => onOpenAgreementModal ? onOpenAgreementModal(b) : onGenerateAgreement && onGenerateAgreement(b)}
+                            className="px-2 py-1 text-[10px] font-semibold bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-md inline-flex items-center gap-1 cursor-pointer"
+                            title={lang === 'id' ? 'Buka Dokumen Agreement (Word .docx / PDF)' : 'Open Agreement Document (Word .docx / PDF)'}
+                          >
+                            <IconFileText className="w-3 h-3 text-blue-600" />
+                            <span>Agreement</span>
+                          </button>
+                          {b.agreementLink && (
+                            b.agreementLink.includes('\n') ? (
+                              b.agreementLink.split('\n').filter(Boolean).map((link, idx) => (
+                                <a
+                                  key={idx}
+                                  href={link.trim()}
+                                  target="_blank"
+                                  rel="noreferrer"
+                                  className="px-1.5 py-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md inline-flex items-center gap-0.5"
+                                  title={`Buka Dokumen ${idx === 0 ? 'MC' : 'MONO'} di Google Drive`}
+                                >
+                                  <span>Drive {idx === 0 ? 'MC' : 'MONO'} ↗</span>
+                                </a>
+                              ))
+                            ) : (
+                              <a
+                                href={b.agreementLink}
+                                target="_blank"
+                                rel="noreferrer"
+                                className="px-1.5 py-1 text-[10px] font-semibold bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-md inline-flex items-center gap-0.5"
+                                title={lang === 'id' ? 'Buka Dokumen di Google Drive' : 'Open in Google Drive'}
+                              >
+                                <span>Drive ↗</span>
+                              </a>
+                            )
                           )}
                           {(user.role === 'Sales Manager' || user.role === 'Coordinator') && (
                             <button onClick={() => onDelete(b)} className="p-1 text-slate-400 hover:text-rose-600 rounded" title={lang === 'id' ? 'Hapus' : 'Delete'}>
@@ -4883,6 +5225,193 @@ function ActivityLogsView({
   )
 }
 
+// ─── Cache & Data Hydration Utilities for Instant Web App Loading ─────────────
+
+export const CACHE_KEYS = {
+  BUSINESSES: 'crm_cached_businesses_v2',
+  USERS_LIST: 'crm_cached_users_list_v2',
+  SHOOT_GROUPS: 'crm_cached_shoot_groups_v2',
+  RAW_SHOOT_LOGS: 'crm_cached_raw_shoot_logs_v2',
+  EDIT_REQUESTS: 'crm_cached_edit_requests_v2',
+  ACTIVITY_LOGS: 'crm_cached_activity_logs_v2',
+  LAST_SYNC: 'crm_cached_last_sync_time'
+}
+
+export function hydrateShootLogs(logs: any[]): RawShootLogItem[] {
+  if (!Array.isArray(logs)) return []
+  return logs.map(l => ({
+    ...l,
+    parsedDate: l.parsedDate ? new Date(l.parsedDate) : parseAnyDate(l.date)
+  }))
+}
+
+export function hydrateShootGroups(groups: any[]): ShootBusinessGroup[] {
+  if (!Array.isArray(groups)) return []
+  return groups.map(g => ({
+    ...g,
+    lastReportParsedDate: g.lastReportParsedDate ? new Date(g.lastReportParsedDate) : (g.lastReportDate ? parseAnyDate(g.lastReportDate) : null),
+    kits: (g.kits || []).map((k: any) => ({
+      ...k,
+      lastParsedDate: k.lastParsedDate ? new Date(k.lastParsedDate) : (k.lastDate ? parseAnyDate(k.lastDate) : null),
+      logs: hydrateShootLogs(k.logs || [])
+    }))
+  }))
+}
+
+function getCachedItem<T>(key: string, fallback: T): T {
+  try {
+    const raw = localStorage.getItem(key)
+    if (!raw) return fallback
+    const parsed = JSON.parse(raw)
+    if (Array.isArray(fallback)) {
+      return (Array.isArray(parsed) && parsed.length > 0) ? (parsed as unknown as T) : fallback
+    }
+    return parsed !== undefined && parsed !== null ? (parsed as T) : fallback
+  } catch {
+    return fallback
+  }
+}
+
+function setCachedItem(key: string, value: any): void {
+  try {
+    localStorage.setItem(key, JSON.stringify(value))
+  } catch (err) {
+    console.warn(`Failed to cache ${key}:`, err)
+  }
+}
+
+function parseGvizBusinesses(gRows: any[]): Business[] {
+  const list: Business[] = []
+  for (let i = 0; i < gRows.length; i++) {
+    const c = gRows[i]?.c
+    if (!c) continue
+    const sdr = (c[0]?.v || '').toString().trim()
+    const bName = (c[1]?.v || '').toString().trim()
+    if (!sdr && !bName) continue
+
+    const subDate = (c[2]?.f || c[2]?.v || '').toString().trim()
+    const rawHours = c[3]?.v
+    let parsedHours = 0
+    if (typeof rawHours === 'number') {
+      parsedHours = rawHours
+    } else {
+      parsedHours = parseInt((rawHours || '').toString().trim(), 10) || 0
+    }
+
+    const rawHw = (c[4]?.v || '').toString().trim()
+    const normalizedHw = normalizeHardware(rawHw)
+    const qty = parseInt(c[5]?.v || '0', 10) || 0
+
+    const rawRateStr = (c[6]?.f || c[6]?.v || '0').toString().trim()
+    let parsedRate = 0
+    let parsedRateMc: number | undefined = undefined
+    let parsedRateMono: number | undefined = undefined
+
+    if (rawRateStr.includes('/') || rawRateStr.toLowerCase().includes('mc') || rawRateStr.toLowerCase().includes('mono')) {
+      const parts = rawRateStr.split(/[\/\&|]/)
+      if (parts.length >= 2) {
+        const val0 = parseFloat(parts[0].replace(/[^0-9.]/g, '')) || undefined
+        const val1 = parseFloat(parts[1].replace(/[^0-9.]/g, '')) || undefined
+        const lowerRaw = rawRateStr.toLowerCase()
+        if (lowerRaw.includes('mc') && lowerRaw.includes('mono')) {
+          const mcIdx = lowerRaw.indexOf('mc')
+          const monoIdx = lowerRaw.indexOf('mono')
+          if (mcIdx < monoIdx) {
+            parsedRateMc = val0
+            parsedRateMono = val1
+          } else {
+            parsedRateMono = val0
+            parsedRateMc = val1
+          }
+        } else {
+          parsedRateMono = val0 !== undefined ? val0 : 3
+          parsedRateMc = val1 !== undefined ? val1 : 5
+        }
+        parsedRate = parsedRateMc || parsedRateMono || 0
+      } else {
+        parsedRate = parseFloat(rawRateStr.replace(/[^0-9.]/g, '')) || 0
+      }
+    } else {
+      parsedRate = parseFloat(rawRateStr.replace(/[^0-9.]/g, '')) || 0
+    }
+
+    const holder = (c[7]?.v || '').toString().trim()
+    const bank = (c[8]?.v || 'Bank Central Asia (BCA)').toString().trim()
+    const accNum = (c[9]?.v || '').toString().trim().replace(/^'/, '')
+    const accType = ((c[10]?.v || 'PERSON').toString().trim() || 'PERSON') as AccountType
+    const city = (c[11]?.v || '').toString().trim()
+    const addr = (c[12]?.v || '').toString().trim()
+    const postCode = (c[13]?.v || '').toString().trim()
+    const phone = normalizePhoneNumber((c[14]?.v || '').toString().trim())
+    const email = (c[15]?.v || '').toString().trim()
+    const rawOwnerKtp = (c[16]?.v || '').toString().trim()
+    const rawAuditKtp = (c[17]?.v || '').toString().trim()
+    let ktpPhotoUrl = ''
+    let ownerKtp = rawOwnerKtp.replace(/^'/, '')
+    if (rawAuditKtp && rawAuditKtp.includes('http')) {
+      ktpPhotoUrl = rawAuditKtp
+    } else if (rawOwnerKtp.includes('http')) {
+      ktpPhotoUrl = rawOwnerKtp
+      ownerKtp = ''
+    }
+
+    const proposal = (c[18]?.v || '').toString().trim()
+    const mou = (c[19]?.v || '').toString().trim()
+    const agreement = (c[20]?.v || '').toString().trim()
+
+    const rawStatus = (c[21]?.v || '').toString().trim().toLowerCase()
+    let normalizedStatus: Status = 'Running'
+    if (rawStatus === 'stopped' || rawStatus === 'reject' || rawStatus === 'stop') normalizedStatus = 'Stopped'
+    else if (rawStatus === 'approved' || rawStatus === 'approve') normalizedStatus = 'approved'
+    else if (rawStatus === 'pending') normalizedStatus = 'pending'
+    else if (rawStatus === 'canceled' || rawStatus === 'cancelled' || rawStatus === 'cancel') normalizedStatus = 'canceled'
+    else if (rawStatus === 'duplicate' || rawStatus === 'duplikat' || rawStatus === 'fraud') normalizedStatus = 'Duplicate'
+
+    let parsedIdType: IdentityType = 'KTP'
+    let parsedSimYear: string | undefined = undefined
+    if (ownerKtp.length === 9) {
+      parsedIdType = 'PASSPORT'
+    } else if (ownerKtp.length === 14) {
+      parsedIdType = 'SIM'
+      parsedSimYear = 'before_jul_2024'
+    }
+
+    list.push({
+      id: `${bName}___${sdr}___${i}`,
+      businessName: bName,
+      sdrName: sdr,
+      submissionDate: subDate,
+      hours: parsedHours,
+      hardware: normalizedHw,
+      quantity: qty,
+      rate: parsedRate,
+      rateMc: parsedRateMc,
+      rateMono: parsedRateMono,
+      identityType: parsedIdType,
+      simYear: parsedSimYear,
+      simPeriod: ownerKtp.length === 14 ? 'before_jul_2024' : 'jul_2024_after',
+      accountHolderName: holder,
+      bankName: bank as BankName,
+      accountNumber: accNum,
+      accountType: accType,
+      city: city,
+      fullAddress: addr,
+      postalCode: postCode,
+      email: email,
+      phone: phone,
+      ownerKtp: ownerKtp,
+      title: 'Owner',
+      proposalLink: proposal,
+      mouLink: mou,
+      agreementLink: agreement,
+      status: normalizedStatus,
+      ktpPhotoUrl: ktpPhotoUrl,
+      hasPendingEdit: false
+    })
+  }
+  return list
+}
+
 // ─── Main Application Component ───────────────────────────────────────────────
 
 export default function App() {
@@ -4901,22 +5430,42 @@ export default function App() {
 
   const t = TRANSLATIONS[lang]
   const [page, setPage] = useState<Page>('dashboard')
-  const [businesses, setBusinesses] = useState<Business[]>([])
-  const [usersList, setUsersList] = useState<User[]>([])
-  const [editRequests, setEditRequests] = useState<EditRequest[]>([])
-  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>([])
 
-  // Raw Shoot Logs & Business Groups
-  const [rawShootLogs, setRawShootLogs] = useState<RawShootLogItem[]>([])
-  const [businessGroups, setBusinessGroups] = useState<ShootBusinessGroup[]>([])
+  // Instant 0ms Hydration: Read from localStorage cache or pre-bundled baseline snapshot
+  const [businesses, setBusinesses] = useState<Business[]>(() => {
+    return getCachedItem(CACHE_KEYS.BUSINESSES, initialBusinesses)
+  })
+  const [usersList, setUsersList] = useState<User[]>(() => {
+    return getCachedItem(CACHE_KEYS.USERS_LIST, initialUsers)
+  })
+  const [editRequests, setEditRequests] = useState<EditRequest[]>(() => {
+    return getCachedItem(CACHE_KEYS.EDIT_REQUESTS, [])
+  })
+  const [activityLogs, setActivityLogs] = useState<ActivityLog[]>(() => {
+    return getCachedItem(CACHE_KEYS.ACTIVITY_LOGS, [])
+  })
+
+  // Raw Shoot Logs & Business Groups (Restored with active Date instances)
+  const [rawShootLogs, setRawShootLogs] = useState<RawShootLogItem[]>(() => {
+    const raw = getCachedItem(CACHE_KEYS.RAW_SHOOT_LOGS, rawInitialShootLogs)
+    return hydrateShootLogs(raw)
+  })
+  const [businessGroups, setBusinessGroups] = useState<ShootBusinessGroup[]>(() => {
+    const raw = getCachedItem(CACHE_KEYS.SHOOT_GROUPS, rawInitialShootGroups)
+    return hydrateShootGroups(raw)
+  })
   const [loadingShootData, setLoadingShootData] = useState(false)
   const [isSyncingShootStatus, setIsSyncingShootStatus] = useState(false)
 
   const [isSyncing, setIsSyncing] = useState(false)
-  const [lastSyncTime, setLastSyncTime] = useState<string>('')
+  const [lastSyncTime, setLastSyncTime] = useState<string>(() => {
+    return localStorage.getItem(CACHE_KEYS.LAST_SYNC) || ''
+  })
   const [sidebarOpen, setSidebarOpen] = useState(false)
-  const [modal, setModal] = useState<'add' | 'edit' | 'view' | 'profile' | 'team' | null>(null)
+  const [modal, setModal] = useState<'add' | 'edit' | 'view' | 'profile' | 'team' | 'agreement' | null>(null)
+  const [agreementTarget, setAgreementTarget] = useState<Business | null>(null)
   const [selected, setSelected] = useState<Business | null>(null)
+
 
   const handleChangeLanguage = (newLang: Language) => {
     setLang(newLang)
@@ -4979,6 +5528,39 @@ export default function App() {
           cleanup()
           resolve(payload)
         }
+
+      script.onerror = (err) => {
+        cleanup()
+        reject(err)
+      }
+
+      document.head.appendChild(script)
+    })
+  }
+
+  // ─── JSONP Loader for All Businesses Tab in Business Spreadsheet ───────────
+  const fetchGvizBusinessesData = (): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      const cbName = 'gviz_biz_cb_' + Date.now() + '_' + Math.floor(Math.random() * 100000)
+      const script = document.createElement('script')
+      script.src = `https://docs.google.com/spreadsheets/d/1_DQZYyDkzm6hjMsgX5ItEFTCyE3l1phKILN2bh7BvFc/gviz/tq?sheet=All%20Businesses&tqx=responseHandler:${cbName}`
+
+      let timer: any = null
+      const cleanup = () => {
+        if (timer) clearTimeout(timer)
+        delete (window as any)[cbName]
+        if (script.parentNode) script.parentNode.removeChild(script)
+      }
+
+      timer = setTimeout(() => {
+        cleanup()
+        reject(new Error('GViz Businesses JSONP timeout'))
+      }, 10000)
+
+      ;(window as any)[cbName] = (payload: any) => {
+        cleanup()
+        resolve(payload)
+      }
 
       script.onerror = (err) => {
         cleanup()
@@ -5393,6 +5975,25 @@ export default function App() {
   const fetchSheet = async () => {
     try {
       setIsSyncing(true)
+
+      // 1. Rapid Fast-Sync via Direct Google Sheets GViz JSONP (~500ms - 1s!)
+      try {
+        const gvizBiz = await fetchGvizBusinessesData()
+        if (gvizBiz && gvizBiz.table && Array.isArray(gvizBiz.table.rows) && gvizBiz.table.rows.length > 0) {
+          const directBizList = parseGvizBusinesses(gvizBiz.table.rows)
+          const validDirect = directBizList.filter(b => b.businessName || b.sdrName)
+          if (validDirect.length > 0) {
+            setBusinesses(validDirect)
+            fetchAtlasShootData(validDirect)
+            const syncStr = new Date().toLocaleTimeString(lang === 'id' ? 'id-ID' : 'en-US')
+            setLastSyncTime(syncStr)
+          }
+        }
+      } catch (gvizErr) {
+        console.warn('Direct GViz businesses sync failed, falling back to GAS:', gvizErr)
+      }
+
+      // 2. Comprehensive sync with Google Apps Script backend
       const scriptUrl = SCRIPT_URL
       if (!scriptUrl) {
         setIsSyncing(false)
@@ -5502,6 +6103,49 @@ export default function App() {
           }
         }
 
+        const rawRateStr = (row['Rate ($/hr)'] || '0').toString().trim()
+        let parsedRate = 0
+        let parsedRateMc: number | undefined = undefined
+        let parsedRateMono: number | undefined = undefined
+
+        if (rawRateStr.includes('/') || rawRateStr.toLowerCase().includes('mc') || rawRateStr.toLowerCase().includes('mono')) {
+          const parts = rawRateStr.split(/[\/\&|]/)
+          if (parts.length >= 2) {
+            const val0 = parseFloat(parts[0].replace(/[^0-9.]/g, '')) || undefined
+            const val1 = parseFloat(parts[1].replace(/[^0-9.]/g, '')) || undefined
+            const lowerRaw = rawRateStr.toLowerCase()
+            if (lowerRaw.includes('mc') && lowerRaw.includes('mono')) {
+              const mcIdx = lowerRaw.indexOf('mc')
+              const monoIdx = lowerRaw.indexOf('mono')
+              if (mcIdx < monoIdx) {
+                parsedRateMc = val0
+                parsedRateMono = val1
+              } else {
+                parsedRateMono = val0
+                parsedRateMc = val1
+              }
+            } else {
+              // Standard format in Spreadsheets is Mono/MC$ e.g. "3/5$" (3 is Mono, 5 is MC)
+              parsedRateMono = val0 !== undefined ? val0 : 3
+              parsedRateMc = val1 !== undefined ? val1 : 5
+            }
+            parsedRate = parsedRateMc || parsedRateMono || 0
+          } else {
+            parsedRate = parseFloat(rawRateStr.replace(/[^0-9.]/g, '')) || 0
+          }
+        } else {
+          parsedRate = parseFloat(rawRateStr.replace(/[^0-9.]/g, '')) || 0
+        }
+
+        let parsedIdType: IdentityType = 'KTP'
+        let parsedSimYear: string | undefined = undefined
+        if (ownerKtp.length === 9) {
+          parsedIdType = 'PASSPORT'
+        } else if (ownerKtp.length === 14) {
+          parsedIdType = 'SIM'
+          parsedSimYear = 'before_jul_2024'
+        }
+
         return {
           id: `${bName}___${sdr}___${index}`,
           businessName: bName,
@@ -5510,7 +6154,12 @@ export default function App() {
           hours: parsedHours,
           hardware: normalizedHw,
           quantity: parseInt(row['Quantity']) || 0,
-          rate: parseFloat((row['Rate ($/hr)'] || '0').replace(/[^0-9.]/g, '')) || 0,
+          rate: parsedRate,
+          rateMc: parsedRateMc,
+          rateMono: parsedRateMono,
+          identityType: parsedIdType,
+          simYear: parsedSimYear,
+          simPeriod: ownerKtp.length === 14 ? 'before_jul_2024' : 'jul_2024_after',
           accountHolderName: (row['Account Holder Name (as at bank)'] || '').toString().trim(),
           bankName: ((row['Bank (pick from list)'] || '').toString().trim() || WISE_BANKS[0]) as BankName,
           accountNumber: (row['Account Number (digits only)'] || '').toString().trim().replace(/^'/, ''),
@@ -5578,6 +6227,50 @@ export default function App() {
       document.removeEventListener('visibilitychange', handleVisibility)
     }
   }, [])
+
+  // Auto-persist CRM state changes to localStorage so page reloads are instantaneous
+  useEffect(() => {
+    if (businesses && businesses.length > 0) {
+      setCachedItem(CACHE_KEYS.BUSINESSES, businesses)
+    }
+  }, [businesses])
+
+  useEffect(() => {
+    if (businessGroups && businessGroups.length > 0) {
+      setCachedItem(CACHE_KEYS.SHOOT_GROUPS, businessGroups)
+    }
+  }, [businessGroups])
+
+  useEffect(() => {
+    if (rawShootLogs && rawShootLogs.length > 0) {
+      setCachedItem(CACHE_KEYS.RAW_SHOOT_LOGS, rawShootLogs)
+    }
+  }, [rawShootLogs])
+
+  useEffect(() => {
+    if (usersList && usersList.length > 0) {
+      setCachedItem(CACHE_KEYS.USERS_LIST, usersList)
+    }
+  }, [usersList])
+
+  useEffect(() => {
+    if (activityLogs && activityLogs.length > 0) {
+      setCachedItem(CACHE_KEYS.ACTIVITY_LOGS, activityLogs)
+    }
+  }, [activityLogs])
+
+  useEffect(() => {
+    if (editRequests && editRequests.length > 0) {
+      setCachedItem(CACHE_KEYS.EDIT_REQUESTS, editRequests)
+    }
+  }, [editRequests])
+
+  useEffect(() => {
+    if (lastSyncTime) {
+      localStorage.setItem(CACHE_KEYS.LAST_SYNC, lastSyncTime)
+    }
+  }, [lastSyncTime])
+
 
   // Auto-fetch shoot data & users list whenever navigating to relevant pages
   useEffect(() => {
@@ -5762,6 +6455,11 @@ export default function App() {
     alert(t.deleteSuccess)
   }
 
+  const handleOpenAgreementModal = (b: Business) => {
+    setAgreementTarget(b)
+    setModal('agreement')
+  }
+
   const handleGenerateAgreementDirect = async (b: Business) => {
     if (!user) return
     const scriptUrl = SCRIPT_URL
@@ -5788,8 +6486,21 @@ export default function App() {
         if (selected && (selected.id === b.id || selected.businessName === b.businessName)) {
           setSelected(prev => prev ? { ...prev, agreementLink: resData.agreementLink } : null)
         }
-        alert(lang === 'id' ? 'Dokumen Agreement berhasil digenerate dan diarsipkan ke Google Drive!' : 'Agreement document generated and archived to Google Drive!')
-        window.open(resData.agreementLink, '_blank')
+        const isDual = b.hardware === 'MC + MONO'
+        alert(
+          lang === 'id'
+            ? (isDual
+              ? 'Dokumen Agreement MC dan MONO berhasil digenerate dan diarsipkan ke Google Drive!'
+              : 'Dokumen Agreement berhasil digenerate dan diarsipkan ke Google Drive!')
+            : (isDual
+              ? 'Both MC and MONO agreement documents generated and archived to Google Drive!'
+              : 'Agreement document generated and archived to Google Drive!')
+        )
+        if (resData.agreementLink.includes('\n')) {
+          resData.agreementLink.split('\n').filter(Boolean).forEach((link: string) => window.open(link.trim(), '_blank'))
+        } else {
+          window.open(resData.agreementLink, '_blank')
+        }
         fetchSheet()
       } else {
         alert(resData.error || (lang === 'id' ? 'Gagal membuat dokumen agreement' : 'Failed to generate agreement document'))
@@ -6040,6 +6751,7 @@ export default function App() {
               onSyncShootStatus={handleSyncStatusFromShootReport}
               isSyncingShootStatus={isSyncingShootStatus}
               onGenerateAgreement={handleGenerateAgreementDirect}
+              onOpenAgreementModal={handleOpenAgreementModal}
             />
           )}
           {page === 'sdr' && <SDRDirectory businesses={businesses} user={user} rawShootLogs={rawShootLogs} lang={lang} />}
@@ -6102,7 +6814,28 @@ export default function App() {
           b={selected}
           lang={lang}
           onGenerateAgreement={handleGenerateAgreementDirect}
+          onOpenAgreementModal={handleOpenAgreementModal}
           onClose={() => setModal(null)}
+        />
+      )}
+
+      {modal === 'agreement' && (agreementTarget || selected) && (
+        <AgreementModal
+          b={agreementTarget || selected!}
+          lang={lang}
+          scriptUrl={SCRIPT_URL}
+          user={user}
+          onClose={() => {
+            setModal(null)
+            setAgreementTarget(null)
+          }}
+          onUpdateAgreementLink={(businessId, link) => {
+            const targetBiz = agreementTarget || selected
+            setBusinesses(prev => prev.map(item => (item.id === businessId || (targetBiz && item.businessName === targetBiz.businessName)) ? { ...item, agreementLink: link } : item))
+            if (selected && (selected.id === businessId || (targetBiz && selected.businessName === targetBiz.businessName))) {
+              setSelected(prev => prev ? { ...prev, agreementLink: link } : null)
+            }
+          }}
         />
       )}
 

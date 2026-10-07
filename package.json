@@ -10,6 +10,7 @@
     "format": "oxfmt"
   },
   "dependencies": {
+    "jszip": "^3.10.2",
     "papaparse": "^5.6.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
@@ -17,6 +18,7 @@
   },
   "devDependencies": {
     "@tailwindcss/vite": "^4.0.0",
+    "@types/jszip": "^3.4.0",
     "@types/node": "^22.0.0",
     "@types/papaparse": "^5.5.2",
     "@types/react": "^19.0.0",

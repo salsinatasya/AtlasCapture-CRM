@@ -7,7 +7,22 @@ var USER_SPREADSHEET_ID = '1YRSrVZFm3gxTU7ZzCjPWYbMzgHo0EufvMQ9ZQ0XRPM4';     //
 var KTP_FOLDER_ID = '1Nfgfh5duU-YvwoFFUbxOj-F4fREbNVeT';                       // Google Drive Folder untuk Foto KTP
 var PROFILE_FOLDER_ID = '1E7yPKqTcSKdvRQ2csTX0gKoe0rVnrQiy';                   // Google Drive Folder untuk Foto Profil
 var AGREEMENT_FOLDER_ID = '';                                                  // Google Drive Folder untuk Arsip Agreement (kosong = auto-create folder "AtlasCapture - Agreement Archive")
-var AGREEMENT_TEMPLATE_DOC_ID = '12inF35IdFF1FOXhE5P-VNq9GHN36iPzhIVCKl6mJhiA';                                            // Google Docs Template ID untuk Agreement (Atlas Pilot Agreement Business MC - Native Google Doc)
+var AGREEMENT_TEMPLATE_DOC_ID = '12inF35IdFF1FOXhE5P-VNq9GHN36iPzhIVCKl6mJhiA'; // Template Default / Kit Multicam (MC)
+// Mapping Template Google Docs per Kit / Hardware (bisa diisi ID Google Docs masing-masing jika sudah ada)
+var AGREEMENT_TEMPLATES_BY_KIT = {
+  'MC': '12inF35IdFF1FOXhE5P-VNq9GHN36iPzhIVCKl6mJhiA',
+  'MONO': '',      // Masukkan ID Google Docs Agreement Kit MONO jika sudah ada
+  'EgoExo': '',    // Masukkan ID Google Docs Agreement Kit EgoExo jika sudah ada
+  'MC + MONO': '12inF35IdFF1FOXhE5P-VNq9GHN36iPzhIVCKl6mJhiA'
+};
+
+function getTemplateIdForHardware(hardware) {
+  var normHw = normalizeHardware(hardware);
+  if (AGREEMENT_TEMPLATES_BY_KIT && AGREEMENT_TEMPLATES_BY_KIT[normHw] && AGREEMENT_TEMPLATES_BY_KIT[normHw].toString().trim() !== '') {
+    return AGREEMENT_TEMPLATES_BY_KIT[normHw].toString().trim();
+  }
+  return (AGREEMENT_TEMPLATE_DOC_ID || '').toString().trim();
+}
 
 function getBusinessSpreadsheet() {
   if (BUSINESS_SPREADSHEET_ID) {
@@ -129,11 +144,32 @@ function applySmartReplacements(container, tagMap) {
 }
 
 function generateAgreementDocument(b) {
+  var normHw = normalizeHardware(b.hardware);
+  if (normHw === 'MC + MONO') {
+    // Generate both MC and MONO agreements!
+    var bMc = {};
+    for (var k in b) { bMc[k] = b[k]; }
+    bMc.hardware = 'MC';
+    bMc.rate = b.rateMc || b.rate || 0;
+
+    var bMono = {};
+    for (var k2 in b) { bMono[k2] = b[k2]; }
+    bMono.hardware = 'MONO';
+    bMono.rate = b.rateMono || b.rate || 0;
+
+    var mcUrl = generateSingleAgreementDoc(bMc, 'MC');
+    var monoUrl = generateSingleAgreementDoc(bMono, 'MONO');
+    return mcUrl + '\n' + monoUrl;
+  }
+  return generateSingleAgreementDoc(b, '');
+}
+
+function generateSingleAgreementDoc(b, kitSuffix) {
   try {
     var folder = getOrCreateAgreementFolder();
     var bizName = (b.businessName || 'Business').toString().trim();
     var subDate = (b.submissionDate || Utilities.formatDate(new Date(), Session.getScriptTimeZone() || 'Asia/Jakarta', 'yyyy-MM-dd')).toString().trim();
-    var fileName = 'Agreement - ' + bizName + ' - ' + subDate;
+    var fileName = kitSuffix ? ('Agreement ' + kitSuffix + ' - ' + bizName + ' - ' + subDate) : ('Agreement - ' + bizName + ' - ' + subDate);
     var createdFile = null;
 
     var cleanNik = (b.ownerKtp || '').toString().trim().replace(/^'/, '');
@@ -151,8 +187,8 @@ function generateAgreementDocument(b) {
 
     var titleVal = (b.title || b.ownerTitle || '').toString().trim() || ((b.accountType === 'COMPANY' || b.accountType === 'PT' || b.accountType === 'CV') ? 'Direktur / Penanggung Jawab' : 'Owner / Pemilik');
 
-    if (AGREEMENT_TEMPLATE_DOC_ID && AGREEMENT_TEMPLATE_DOC_ID.toString().trim() !== '') {
-      var templateId = AGREEMENT_TEMPLATE_DOC_ID.toString().trim();
+    var templateId = getTemplateIdForHardware(b.hardware);
+    if (templateId) {
       var template = DriveApp.getFileById(templateId);
 
       // Support auto-converting Word (.docx) to Google Docs if Advanced Drive Service is enabled
@@ -402,7 +438,8 @@ function normalizeHardware(hw) {
   if (lower === 'mc') return 'MC';
   if (lower === 'mono') return 'MONO';
   if (lower === 'egoexo' || lower === 'ego' || lower === 'exo') return 'EgoExo';
-  if (lower === 'mc+mono' || lower === 'mc&mono' || lower === 'mcmono') return 'MC + MONO';
+  if (lower === 'mc+mono' || lower === 'mc&mono' || lower === 'mcmono' || lower === 'mono+mc' || lower === 'mono&mc' || lower === 'monomc') return 'MC + MONO';
+  if (lower.indexOf('mc') !== -1 && lower.indexOf('mono') !== -1) return 'MC + MONO';
   return str;
 }
 
@@ -918,12 +955,23 @@ function doPost(e) {
             .setMimeType(ContentService.MimeType.JSON);
         }
 
-        // Update Column T (20) in Spreadsheet if row found
+        // Update Agreement column in Spreadsheet if row found
         if (targetSheet) {
           var sValues = targetSheet.getDataRange().getValues();
+          var agCol = -1;
+          if (sValues.length > 0) {
+            for (var c = 0; c < sValues[0].length; c++) {
+              if (sValues[0][c] && sValues[0][c].toString().trim().toLowerCase() === 'agreement') {
+                agCol = c + 1;
+                break;
+              }
+            }
+          }
           for (var idx = 1; idx < sValues.length; idx++) {
             if (sValues[idx][0] && sValues[idx][0].toString().trim().toLowerCase() === bName.trim().toLowerCase()) {
-              targetSheet.getRange(idx + 1, 20).setValue(agreementUrl);
+              if (agCol > 0) {
+                targetSheet.getRange(idx + 1, agCol).setValue(agreementUrl);
+              }
               recordActivityLog(payload.actor, 'GENERATE_AGREEMENT', bName, targetSheet.getName(), 'Agreement dibuat & diarsipkan ke Drive: ' + agreementUrl);
               return ContentService.createTextOutput(JSON.stringify({
                 success: true,
@@ -1068,14 +1116,25 @@ function doPost(e) {
     // --------------------------------------------------------------------------
     if (payload.action === 'upload_file' || payload.fileData) {
       var decoded = Utilities.base64Decode(payload.fileData);
-      var blob = Utilities.newBlob(decoded, payload.mimeType, payload.fileName);
 
       var isProfile = (payload.folderType === 'profile');
-      var targetFolderId = isProfile ? PROFILE_FOLDER_ID : KTP_FOLDER_ID;
+      var isAgreement = (payload.folderType === 'agreement');
+      var isKtp = (!isProfile && !isAgreement);
+
+      // When saving KTP, Driver License or Passport, Drive file name is strictly the Business Name
+      var fileName = payload.fileName;
+      if (isKtp && payload.businessName) {
+        fileName = payload.businessName.toString().trim();
+      }
+
+      var blob = Utilities.newBlob(decoded, payload.mimeType, fileName);
+      var targetFolderId = isProfile ? PROFILE_FOLDER_ID : (isAgreement ? AGREEMENT_FOLDER_ID : KTP_FOLDER_ID);
       var folder = null;
       try {
         if (targetFolderId) {
           folder = DriveApp.getFolderById(targetFolderId);
+        } else if (isAgreement) {
+          folder = getOrCreateAgreementFolder();
         }
       } catch (fErr) {
         Logger.log("Folder lookup error: " + fErr.toString());
@@ -1087,12 +1146,48 @@ function doPost(e) {
       var fileId = file.getId();
       var directUrl = "https://lh3.googleusercontent.com/d/" + fileId;
 
+      // If this is an agreement doc, automatically update the agreementLink in Google Sheets
+      if (isAgreement && payload.businessName) {
+        try {
+          var ss = getBusinessSpreadsheet();
+          var sdrSheet = findSdrSheet(ss, payload.sdrName);
+          if (sdrSheet) {
+            var sdrData = sdrSheet.getDataRange().getValues();
+            var agColIndex = -1;
+            if (sdrData.length > 0) {
+              for (var c2 = 0; c2 < sdrData[0].length; c2++) {
+                if (sdrData[0][c2] && sdrData[0][c2].toString().trim().toLowerCase() === 'agreement') {
+                  agColIndex = c2 + 1;
+                  break;
+                }
+              }
+            }
+            if (agColIndex > 0) {
+              for (var r = 1; r < sdrData.length; r++) {
+                if (sdrData[r][0] && sdrData[r][0].toString().trim().toLowerCase() === payload.businessName.toString().trim().toLowerCase()) {
+                  var prevLink = (sdrData[r][agColIndex - 1] || '').toString().trim();
+                  var newLink = file.getUrl();
+                  if (payload.appendAgreementLink && prevLink && prevLink.indexOf(newLink) === -1) {
+                    newLink = prevLink + '\n' + newLink;
+                  }
+                  sdrSheet.getRange(r + 1, agColIndex).setValue(newLink);
+                  break;
+                }
+              }
+            }
+          }
+        } catch (linkErr) {
+          Logger.log("Failed to update agreementLink in sheet: " + linkErr.toString());
+        }
+      }
+
       return ContentService.createTextOutput(JSON.stringify({
         success: true,
         url: file.getUrl(),
+        agreementLink: file.getUrl(),
         directUrl: directUrl,
         fileId: fileId,
-        folderType: isProfile ? 'profile' : 'ktp'
+        folderType: isProfile ? 'profile' : (isAgreement ? 'agreement' : 'ktp')
       })).setMimeType(ContentService.MimeType.JSON);
     }
 
@@ -1137,10 +1232,19 @@ function updateBusinessStatusInSheet(ss, sdrName, businessName, newStatus, actor
   var sheet = findSdrSheet(ss, sdrName);
   if (sheet) {
     var data = sheet.getDataRange().getValues();
+    var stCol = 19; // Default Col S (19)
+    if (data.length > 0) {
+      for (var c = 0; c < data[0].length; c++) {
+        if (data[0][c] && data[0][c].toString().trim().toLowerCase() === 'status') {
+          stCol = c + 1;
+          break;
+        }
+      }
+    }
     for (var i = 1; i < data.length; i++) {
       if (data[i][0] && data[i][0].toString().trim().toLowerCase() === (businessName || '').toString().trim().toLowerCase()) {
-        var oldSt = data[i][20] || 'Running';
-        sheet.getRange(i + 1, 21).setValue(newStatus);
+        var oldSt = data[i][stCol - 1] || 'Running';
+        sheet.getRange(i + 1, stCol).setValue(newStatus);
         recordActivityLog(actor, 'UPDATE_STATUS', businessName, sheet.getName(), 'Status diubah: ' + oldSt + ' ➔ ' + newStatus);
         return { success: true, message: 'Status updated to ' + newStatus };
       }
@@ -1151,10 +1255,19 @@ function updateBusinessStatusInSheet(ss, sdrName, businessName, newStatus, actor
   var allSheets = ss.getSheets();
   for (var s = 0; s < allSheets.length; s++) {
     var sData = allSheets[s].getDataRange().getValues();
+    var stCol2 = 19; // Default Col S (19)
+    if (sData.length > 0) {
+      for (var c2 = 0; c2 < sData[0].length; c2++) {
+        if (sData[0][c2] && sData[0][c2].toString().trim().toLowerCase() === 'status') {
+          stCol2 = c2 + 1;
+          break;
+        }
+      }
+    }
     for (var r = 1; r < sData.length; r++) {
       if (sData[r][0] && sData[r][0].toString().trim().toLowerCase() === (businessName || '').toString().trim().toLowerCase()) {
-        var oldSt2 = sData[r][20] || 'Running';
-        allSheets[s].getRange(r + 1, 21).setValue(newStatus);
+        var oldSt2 = sData[r][stCol2 - 1] || 'Running';
+        allSheets[s].getRange(r + 1, stCol2).setValue(newStatus);
         recordActivityLog(actor, 'UPDATE_STATUS', businessName, allSheets[s].getName(), 'Status diubah: ' + oldSt2 + ' ➔ ' + newStatus);
         return { success: true, message: 'Status updated to ' + newStatus };
       }
@@ -1188,6 +1301,23 @@ function saveBusinessToSheet(ss, b, actor) {
   var parsedHours = Number(b.hours) || 0;
   var parsedQty = Number(b.quantity) || 0;
   var parsedRate = Number(b.rate) || 0;
+  if (normalizedHw === 'MC + MONO') {
+    var rMono = (b.rateMono !== undefined && b.rateMono !== null && b.rateMono !== '') ? Number(b.rateMono) : 0;
+    var rMc = (b.rateMc !== undefined && b.rateMc !== null && b.rateMc !== '') ? Number(b.rateMc) : 0;
+    if (!rMono || !rMc) {
+      var rateStr = (b.rate || '').toString();
+      if (rateStr.indexOf('/') !== -1) {
+        var rParts = rateStr.split(/[\/\&|]/);
+        if (!rMono && rParts[0]) rMono = parseFloat(rParts[0].replace(/[^0-9.]/g, '')) || 0;
+        if (!rMc && rParts[1]) rMc = parseFloat(rParts[1].replace(/[^0-9.]/g, '')) || 0;
+      } else if (!rMc) {
+        rMc = Number(b.rate) || 0;
+      }
+    }
+    var monoVal = rMono || 3;
+    var mcVal = rMc || 5;
+    parsedRate = monoVal + '/' + mcVal + '$';
+  }
 
   // Auto-generate Agreement document & archive to Google Drive if not already present
   var autoGeneratedAgreement = false;
@@ -1203,28 +1333,46 @@ function saveBusinessToSheet(ss, b, actor) {
     }
   }
 
+  // Row strictly follows columns A to S (19 columns):
+  // Col A (1): Business
+  // Col B (2): Submission Date
+  // Col C (3): Hours
+  // Col D (4): Hardware
+  // Col E (5): Quantity
+  // Col F (6): Rate ($/hr)
+  // Col G (7): Title
+  // Col H (8): Account Holder Name (as at bank)
+  // Col I (9): Bank (pick from list)
+  // Col J (10): Account Number (digits only)
+  // Col K (11): Acc Type
+  // Col L (12): City
+  // Col M (13): Address
+  // Col N (14): Post Code
+  // Col O (15): Email
+  // Col P (16): Phone Number
+  // Col Q (17): Business Owner ID card Number
+  // Col R (18): ID Card Audit (for Admin)
+  // Col S (19): Status
   var row = [
     b.businessName || '',
     b.submissionDate || '',
     parsedHours,                      // Col C (3): Hours (Numeric integer)
-    normalizedHw,
-    parsedQty,
-    parsedRate,
-    b.accountHolderName || '',
-    b.bankName || '',
-    formattedAcc,
-    b.accountType || 'PERSON',
-    b.city || '',
-    b.fullAddress || '',
-    b.postalCode || '',
-    b.email || '',                    // Col N (14): Email (setelah pembaruan letak kolom)
-    normalizePhone(b.phone),          // Col O (15): Phone Number (berada setelah Email)
-    formattedNik,                     // Col P (16): Business Owner ID card Number (NIK 16-digit text)
-    b.ktpPhotoUrl || '',              // Col Q (17): ID Card Audit (for Admin) (Link KTP Google Drive)
-    b.proposalLink || '',             // Col R (18): Proposal
-    b.mouLink || '',                  // Col S (19): MoU
-    b.agreementLink || '',            // Col T (20): Agreement (Link Dokumen Google Drive)
-    normalizedSt                      // Col U (21): Status (Default: Running)
+    normalizedHw,                     // Col D (4): Hardware
+    parsedQty,                        // Col E (5): Quantity
+    parsedRate,                       // Col F (6): Rate ($/hr)
+    b.title || 'Owner',               // Col G (7): Title
+    b.accountHolderName || '',        // Col H (8): Account Holder Name (as at bank)
+    b.bankName || '',                 // Col I (9): Bank (pick from list)
+    formattedAcc,                     // Col J (10): Account Number (digits only)
+    b.accountType || 'PERSON',        // Col K (11): Acc Type
+    b.city || '',                     // Col L (12): City
+    b.fullAddress || '',              // Col M (13): Address
+    b.postalCode || '',               // Col N (14): Post Code
+    b.email || '',                    // Col O (15): Email
+    normalizePhone(b.phone),          // Col P (16): Phone Number
+    formattedNik,                     // Col Q (17): Business Owner ID card Number (NIK 16-digit text)
+    b.ktpPhotoUrl || '',              // Col R (18): ID Card Audit (for Admin) (Link KTP Google Drive)
+    normalizedSt                      // Col S (19): Status (Default: Running)
   ];
 
   var originalSheetName = b.originalSdrName || sheetName;
@@ -1233,6 +1381,25 @@ function saveBusinessToSheet(ss, b, actor) {
 
   var foundRowIndex = -1;
   var sheetData = originalSheet.getDataRange().getValues();
+
+  // If the sheet has additional columns after Col S (e.g. Agreement, Proposal, MoU), preserve or populate them:
+  if (sheetData[0] && sheetData[0].length > row.length) {
+    for (var c = row.length; c < sheetData[0].length; c++) {
+      var headerName = (sheetData[0][c] || '').toString().trim().toLowerCase();
+      if (headerName === 'agreement') {
+        row.push(b.agreementLink || '');
+      } else if (headerName === 'proposal') {
+        row.push(b.proposalLink || '');
+      } else if (headerName === 'mou') {
+        row.push(b.mouLink || '');
+      } else {
+        var existingVal = (foundRowIndex > -1 && sheetData[foundRowIndex - 1] && sheetData[foundRowIndex - 1][c] !== undefined)
+          ? sheetData[foundRowIndex - 1][c]
+          : '';
+        row.push(existingVal);
+      }
+    }
+  }
   for (var i = 1; i < sheetData.length; i++) {
     if (sheetData[i][0] && sheetData[i][0].toString().trim().toLowerCase() === (originalBusinessName || '').toString().trim().toLowerCase()) {
       foundRowIndex = i + 1;
@@ -1268,7 +1435,7 @@ function saveBusinessToSheet(ss, b, actor) {
     sheet.appendRow(row);
     var newLastRow = sheet.getLastRow();
     sheet.getRange(newLastRow, 3).setNumberFormat('0');
-    recordActivityLog(actor, 'ADD_BUSINESS', b.businessName, sheet.getName(), 'Tambah bisnis baru (' + parsedHours + ' hrs, ' + normalizedHw + ', Rate: $' + parsedRate + ') SDR: ' + sheet.getName() + (autoGeneratedAgreement ? ' [Agreement Generated & Archived to Drive]' : ''));
+    recordActivityLog(actor, 'ADD_BUSINESS', b.businessName, sheet.getName(), 'Tambah bisnis baru (' + parsedHours + ' hrs, ' + normalizedHw + ', Rate: ' + (typeof parsedRate === 'number' ? ('$' + parsedRate) : parsedRate) + ') SDR: ' + sheet.getName() + (autoGeneratedAgreement ? ' [Agreement Generated & Archived to Drive]' : ''));
     return {
       success: true,
       message: (autoGeneratedAgreement ? 'Bisnis & Agreement berhasil dibuat & diarsipkan ke Drive! ' : '') + 'Row appended to ' + sheet.getName(),
